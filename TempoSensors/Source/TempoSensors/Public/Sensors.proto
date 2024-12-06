@@ -8,6 +8,7 @@ enum MeasurementType {
   COLOR_IMAGE = 0;
   DEPTH_IMAGE = 1;
   LABEL_IMAGE = 2;
+  BOUNDING_BOXES = 3;
 }
 
 message SensorDescriptor {
@@ -33,4 +34,6 @@ service SensorService {
   rpc StreamDepthImages(TempoCamera.DepthImageRequest) returns (stream TempoCamera.DepthImage);
 
   rpc StreamLabelImages(TempoCamera.LabelImageRequest) returns (stream TempoCamera.LabelImage);
+
+  rpc StreamBoundingBoxes(TempoCamera.BoundingBoxesRequest) returns (stream TempoCamera.BoundingBoxes);
 }

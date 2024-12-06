@@ -21,6 +21,8 @@ using LabelImageRequest = TempoCamera::LabelImageRequest;
 using ColorImage = TempoCamera::ColorImage;
 using DepthImage = TempoCamera::DepthImage;
 using LabelImage = TempoCamera::LabelImage;
+using BoundingBoxesRequest = TempoCamera::BoundingBoxesRequest;
+using BoundingBoxes = TempoCamera::BoundingBoxes;
 
 void UTempoSensorServiceSubsystem::RegisterScriptingServices(FTempoScriptingServer& ScriptingServer)
 {
@@ -28,7 +30,8 @@ void UTempoSensorServiceSubsystem::RegisterScriptingServices(FTempoScriptingServ
 		SimpleRequestHandler(&SensorAsyncService::RequestGetAvailableSensors, &UTempoSensorServiceSubsystem::GetAvailableSensors),
 		StreamingRequestHandler(&SensorAsyncService::RequestStreamColorImages, &UTempoSensorServiceSubsystem::StreamColorImages),
 		StreamingRequestHandler(&SensorAsyncService::RequestStreamDepthImages, &UTempoSensorServiceSubsystem::StreamDepthImages),
-		StreamingRequestHandler(&SensorAsyncService::RequestStreamLabelImages, &UTempoSensorServiceSubsystem::StreamLabelImages)
+		StreamingRequestHandler(&SensorAsyncService::RequestStreamLabelImages, &UTempoSensorServiceSubsystem::StreamLabelImages),
+		StreamingRequestHandler(&SensorAsyncService::RequestStreamBoundingBoxes, &UTempoSensorServiceSubsystem::StreamBoundingBoxes)
 		);
 }
 
@@ -259,4 +262,10 @@ void UTempoSensorServiceSubsystem::StreamDepthImages(const TempoCamera::DepthIma
 void UTempoSensorServiceSubsystem::StreamLabelImages(const TempoCamera::LabelImageRequest& Request, const TResponseDelegate<TempoCamera::LabelImage>& ResponseContinuation) const
 {
 	RequestImages<TempoCamera::LabelImageRequest, TempoCamera::LabelImage>(Request, ResponseContinuation);
+}
+
+void UTempoSensorServiceSubsystem::StreamBoundingBoxes(const TempoCamera::BoundingBoxesRequest& Request, 
+                                                      const TResponseDelegate<TempoCamera::BoundingBoxes>& ResponseContinuation) const
+{
+	RequestImages<TempoCamera::BoundingBoxesRequest, TempoCamera::BoundingBoxes>(Request, ResponseContinuation);
 }

@@ -48,3 +48,21 @@ message LabelImageRequest {
   string owner_name = 1;
   string sensor_name = 2;
 }
+
+message BoundingBoxesRequest {
+  string owner_name = 1;
+  string sensor_name = 2;
+}
+
+message BoundingBox2D {
+  uint32 label = 1;
+  float x_min = 2;
+  float y_min = 3;
+  float x_max = 4;
+  float y_max = 5;
+}
+
+message BoundingBoxes {
+  TempoSensorsShared.MeasurementHeader header = 1;
+  repeated BoundingBox2D boxes = 2;
+}

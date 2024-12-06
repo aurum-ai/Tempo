@@ -126,9 +126,59 @@ void TTextureRead<FCameraPixelWithDepth>::RespondToRequests(const TArray<FDepthI
 	}
 }
 
+void TTextureRead<FCameraPixelNoDepth>::RespondToRequests(const TArray<FBoundingBoxesRequest>& Requests, float TransmissionTime) const
+{
+	TempoCamera::BoundingBoxes BoundingBoxes;
+	
+	// Fill header
+	BoundingBoxes.mutable_header()->set_sequence_id(SequenceId);
+	BoundingBoxes.mutable_header()->set_capture_time(CaptureTime);
+	BoundingBoxes.mutable_header()->set_transmission_time(TransmissionTime);
+	BoundingBoxes.mutable_header()->set_sensor_name(TCHAR_TO_UTF8(*FString::Printf(TEXT("%s/%s"), *OwnerName, *SensorName)));
+
+	// Add a test bounding box
+	TempoCamera::BoundingBox2D* Box = BoundingBoxes.add_boxes();
+	Box->set_label(1);  // Test label
+	Box->set_x_min(0.2f);  // Test coordinates
+	Box->set_y_min(0.3f);
+	Box->set_x_max(0.8f);
+	Box->set_y_max(0.7f);
+
+	// Send response to all requesters
+	for (auto RequestIt = Requests.CreateConstIterator(); RequestIt; ++RequestIt)
+	{
+		RequestIt->ResponseContinuation.ExecuteIfBound(BoundingBoxes, grpc::Status_OK);
+	}
+}
+
+void TTextureRead<FCameraPixelWithDepth>::RespondToRequests(const TArray<FBoundingBoxesRequest>& Requests, float TransmissionTime) const
+{
+	TempoCamera::BoundingBoxes BoundingBoxes;
+	
+	// Fill header
+	BoundingBoxes.mutable_header()->set_sequence_id(SequenceId);
+	BoundingBoxes.mutable_header()->set_capture_time(CaptureTime);
+	BoundingBoxes.mutable_header()->set_transmission_time(TransmissionTime);
+	BoundingBoxes.mutable_header()->set_sensor_name(TCHAR_TO_UTF8(*FString::Printf(TEXT("%s/%s"), *OwnerName, *SensorName)));
+
+	// Add a test bounding box
+	TempoCamera::BoundingBox2D* Box = BoundingBoxes.add_boxes();
+	Box->set_label(1);  // Test label
+	Box->set_x_min(0.2f);  // Test coordinates
+	Box->set_y_min(0.3f);
+	Box->set_x_max(0.8f);
+	Box->set_y_max(0.7f);
+
+	// Send response to all requesters
+	for (auto RequestIt = Requests.CreateConstIterator(); RequestIt; ++RequestIt)
+	{
+		RequestIt->ResponseContinuation.ExecuteIfBound(BoundingBoxes, grpc::Status_OK);
+	}
+}
+
 UTempoCamera::UTempoCamera()
 {
-	MeasurementTypes = { EMeasurementType::COLOR_IMAGE, EMeasurementType::LABEL_IMAGE, EMeasurementType::DEPTH_IMAGE};
+	MeasurementTypes = { EMeasurementType::COLOR_IMAGE, EMeasurementType::LABEL_IMAGE, EMeasurementType::DEPTH_IMAGE, EMeasurementType::BOUNDING_BOXES };
 	CaptureSource = ESceneCaptureSource::SCS_FinalColorLDR;
 	PostProcessSettings.AutoExposureMethod = AEM_Basic;
 	PostProcessSettings.AutoExposureSpeedUp = 20.0;
@@ -185,6 +235,11 @@ void UTempoCamera::RequestMeasurement(const TempoCamera::DepthImageRequest& Requ
 	PendingDepthImageRequests.Add({ Request, ResponseContinuation});
 }
 
+void UTempoCamera::RequestMeasurement(const TempoCamera::BoundingBoxesRequest& Request, const TResponseDelegate<TempoCamera::BoundingBoxes>& ResponseContinuation)
+{
+	PendingBoundingBoxRequests.Add({ Request, ResponseContinuation});
+}
+
 FTempoCameraIntrinsics UTempoCamera::GetIntrinsics() const
 {
 	return FTempoCameraIntrinsics(SizeXY, FOVAngle);
@@ -192,7 +247,10 @@ FTempoCameraIntrinsics UTempoCamera::GetIntrinsics() const
 
 bool UTempoCamera::HasPendingRequests() const
 {
-	return !PendingColorImageRequests.IsEmpty() || !PendingLabelImageRequests.IsEmpty() || !PendingDepthImageRequests.IsEmpty();
+	return !PendingColorImageRequests.IsEmpty() || 
+		   !PendingLabelImageRequests.IsEmpty() || 
+		   !PendingDepthImageRequests.IsEmpty() ||
+		   !PendingBoundingBoxRequests.IsEmpty();
 }
 
 FTextureRead* UTempoCamera::MakeTextureRead() const
@@ -215,6 +273,7 @@ TFuture<void> UTempoCamera::DecodeAndRespond(TUniquePtr<FTextureRead> TextureRea
 		ColorImageRequests = PendingColorImageRequests,
 		LabelImageRequests = PendingLabelImageRequests,
 		DepthImageRequests = PendingDepthImageRequests,
+		BoundingBoxRequests = PendingBoundingBoxRequests,
 		TransmissionTimeCpy = TransmissionTime
 		]
 	{
@@ -225,16 +284,19 @@ TFuture<void> UTempoCamera::DecodeAndRespond(TUniquePtr<FTextureRead> TextureRea
 			static_cast<TTextureRead<FCameraPixelWithDepth>*>(TextureRead.Get())->RespondToRequests(ColorImageRequests, TransmissionTimeCpy);
 			static_cast<TTextureRead<FCameraPixelWithDepth>*>(TextureRead.Get())->RespondToRequests(LabelImageRequests, TransmissionTimeCpy);
 			static_cast<TTextureRead<FCameraPixelWithDepth>*>(TextureRead.Get())->RespondToRequests(DepthImageRequests, TransmissionTimeCpy);
+			static_cast<TTextureRead<FCameraPixelWithDepth>*>(TextureRead.Get())->RespondToRequests(BoundingBoxRequests, TransmissionTimeCpy);
 		}
 		else if (TextureRead->GetType() == TEXT("NoDepth"))
 		{
 			static_cast<TTextureRead<FCameraPixelNoDepth>*>(TextureRead.Get())->RespondToRequests(ColorImageRequests, TransmissionTimeCpy);
 			static_cast<TTextureRead<FCameraPixelNoDepth>*>(TextureRead.Get())->RespondToRequests(LabelImageRequests, TransmissionTimeCpy);
+			static_cast<TTextureRead<FCameraPixelNoDepth>*>(TextureRead.Get())->RespondToRequests(BoundingBoxRequests, TransmissionTimeCpy);
 		}
 	});
 
 	PendingColorImageRequests.Empty();
 	PendingLabelImageRequests.Empty();
+	PendingBoundingBoxRequests.Empty();
 	if (bSupportsDepth)
 	{
 		PendingDepthImageRequests.Empty();
