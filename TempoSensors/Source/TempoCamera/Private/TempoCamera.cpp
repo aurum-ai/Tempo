@@ -103,10 +103,10 @@ void RespondToBoundingBoxRequests(const TTextureRead<PixelType>* TextureRead, co
 				auto* BoundingBox = BoundingBoxes.add_boxes();
 				BoundingBox->set_label(Bounds.Label);
 				// Normalize coordinates to [0,1]
-				BoundingBox->set_x_min(Bounds.ScreenBounds.Min.X / TextureRead->ImageSize.X);
-				BoundingBox->set_y_min(Bounds.ScreenBounds.Min.Y / TextureRead->ImageSize.Y);
-				BoundingBox->set_x_max(Bounds.ScreenBounds.Max.X / TextureRead->ImageSize.X);
-				BoundingBox->set_y_max(Bounds.ScreenBounds.Max.Y / TextureRead->ImageSize.Y);
+				BoundingBox->set_x_min(Bounds.Bounds.Min.X);
+				BoundingBox->set_y_min(Bounds.Bounds.Min.Y);
+				BoundingBox->set_x_max(Bounds.Bounds.Max.X);
+				BoundingBox->set_y_max(Bounds.Bounds.Max.Y);
 			}
 			// Fill header
 			BoundingBoxes.mutable_header()->set_sequence_id(TextureRead->SequenceId);
