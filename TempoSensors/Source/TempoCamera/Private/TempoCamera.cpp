@@ -53,15 +53,6 @@ void RespondToColorRequests(const TTextureRead<PixelType>* TextureRead, const TA
 	}
 }
 
-/*
-The flow of data is:
-1. Labels are defined in SemanticLabelTable
-2. Post-process materials write labels to the stencil buffer during rendering
-3. UTempoSceneCaptureComponent2D captures the rendered image including labels
-4. TextureRead is created to hold this captured data
-5. Label information is extracted from TextureRead when responding to label requests
-The actual labeling of actors/meshes is handled by the TempoActorLabeler subsystem, which applies the labels defined in SemanticLabelTable to the appropriate actors and meshes in the scene.
-*/
 template <typename PixelType>
 void RespondToLabelRequests(const TTextureRead<PixelType>* TextureRead, const TArray<FLabelImageRequest>& Requests, float TransmissionTime)
 {
@@ -90,8 +81,6 @@ void RespondToLabelRequests(const TTextureRead<PixelType>* TextureRead, const TA
 	}
 }
 
-// We tried post-processing the labels using Watershed and Connected Components, but they didn't work well.
-// Instead we need to generate them directly and store in TextureRead
 template <typename PixelType>
 void RespondToBoundingBoxRequests(const TTextureRead<PixelType>* TextureRead, const TArray<FBoundingBoxesRequest>& Requests, float TransmissionTime)
 {
@@ -102,13 +91,11 @@ void RespondToBoundingBoxRequests(const TTextureRead<PixelType>* TextureRead, co
 			{
 				auto* BoundingBox = BoundingBoxes.add_boxes();
 				BoundingBox->set_label(Bounds.Label);
-				// Normalize coordinates to [0,1]
 				BoundingBox->set_x_min(Bounds.Bounds.Min.X);
 				BoundingBox->set_y_min(Bounds.Bounds.Min.Y);
 				BoundingBox->set_x_max(Bounds.Bounds.Max.X);
 				BoundingBox->set_y_max(Bounds.Bounds.Max.Y);
 			}
-			// Fill header
 			BoundingBoxes.mutable_header()->set_sequence_id(TextureRead->SequenceId);
 			BoundingBoxes.mutable_header()->set_capture_time(TextureRead->CaptureTime);
 			BoundingBoxes.mutable_header()->set_transmission_time(TransmissionTime);

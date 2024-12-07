@@ -96,7 +96,7 @@ struct TTextureRead<FCameraPixelWithDepth> : TTextureReadBase<FCameraPixelWithDe
 	void RespondToRequests(const TArray<FColorImageRequest>& Requests, float TransmissionTime) const;
 	void RespondToRequests(const TArray<FLabelImageRequest>& Requests, float TransmissionTime) const;
 	void RespondToRequests(const TArray<FDepthImageRequest>& Requests, float TransmissionTime) const;
-	void RespondToRequests(const TArray<FBoundingBoxesRequest>& Requests, float TransmissionTime) const; // JASON
+	void RespondToRequests(const TArray<FBoundingBoxesRequest>& Requests, float TransmissionTime) const;
 
 	float MinDepth;
 	float MaxDepth;
@@ -111,7 +111,7 @@ struct TTextureRead<FCameraPixelNoDepth> : TTextureReadBase<FCameraPixelNoDepth>
 
 	void RespondToRequests(const TArray<FColorImageRequest>& Requests, float TransmissionTime) const;
 	void RespondToRequests(const TArray<FLabelImageRequest>& Requests, float TransmissionTime) const;
-	void RespondToRequests(const TArray<FBoundingBoxesRequest>& Requests, float TransmissionTime) const; // JASON
+	void RespondToRequests(const TArray<FBoundingBoxesRequest>& Requests, float TransmissionTime) const;
 };
 
 struct TEMPOCAMERA_API FTempoCameraIntrinsics
@@ -141,7 +141,7 @@ public:
 
 	void RequestMeasurement(const TempoCamera::DepthImageRequest& Request, const TResponseDelegate<TempoCamera::DepthImage>& ResponseContinuation);
 
-	void RequestMeasurement(const TempoCamera::BoundingBoxesRequest& Request, const TResponseDelegate<TempoCamera::BoundingBoxes>& ResponseContinuation); // JASON
+	void RequestMeasurement(const TempoCamera::BoundingBoxesRequest& Request, const TResponseDelegate<TempoCamera::BoundingBoxes>& ResponseContinuation);
 
 	FTempoCameraIntrinsics GetIntrinsics() const;
 
@@ -176,5 +176,5 @@ protected:
 	TArray<FColorImageRequest> PendingColorImageRequests;
 	TArray<FLabelImageRequest> PendingLabelImageRequests;
 	TArray<FDepthImageRequest> PendingDepthImageRequests;
-	TArray<FBoundingBoxesRequest> PendingBoundingBoxRequests; // JASON
+	TArray<FBoundingBoxesRequest> PendingBoundingBoxRequests;
 };
