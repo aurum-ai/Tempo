@@ -10,6 +10,12 @@
 
 #include "TempoSceneCaptureComponent2D.generated.h"
 
+struct FLabeledBounds
+{
+	uint8 Label;
+	FBox2D ScreenBounds; // In Screen/pixel coordinates
+};
+
 struct FTextureRead
 {
 	enum class State : uint8
@@ -78,11 +84,28 @@ struct TTextureReadBase : FTextureRead
 		GDynamicRHI->RHIMapStagingSurface(TextureRHICopy, Fence, OutBuffer, SurfaceWidth, SurfaceHeight, RHICmdList.GetGPUMask().ToIndex());
 		FMemory::Memcpy(Image.GetData(), OutBuffer, SurfaceWidth * SurfaceHeight * sizeof(PixelType));
 		RHICmdList.UnmapStagingSurface(TextureRHICopy);
+
+		// Add test bounding box
+		{
+			// TEST ONLY: Add a static bounding box in the center of the image
+			FLabeledBounds TestBounds;
+			TestBounds.Label = 1;  // Test label
+			const float CenterX = ImageSize.X / 2.0f;
+			const float CenterY = ImageSize.Y / 2.0f;
+			const float BoxSize = 100.0f;  // 100x100 pixel test box
+			TestBounds.ScreenBounds = FBox2D(
+					FVector2D(CenterX - BoxSize/2, CenterY - BoxSize/2),  // Min
+					FVector2D(CenterX + BoxSize/2, CenterY + BoxSize/2)   // Max
+			);
+			LabeledBounds.Add(TestBounds);
+	}
 		
 		State = State::EReadComplete;
 	}
 	
 	TArray<PixelType> Image;
+
+	TArray<FLabeledBounds> LabeledBounds;
 };
 
 template <typename PixelType>
