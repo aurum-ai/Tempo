@@ -205,6 +205,16 @@ void UTempoCamera::UpdateSceneCaptureContents(FSceneInterface* Scene)
 		SetDepthEnabled(false);
 	}
 
+	if (!bBoundingBoxEnabled && !PendingBoundingBoxRequests.IsEmpty())
+	{
+		SetBoundingBoxEnabled(true);
+	}
+	
+	if (bBoundingBoxEnabled && PendingBoundingBoxRequests.IsEmpty())
+	{
+		SetBoundingBoxEnabled(false);
+	}
+
 	Super::UpdateSceneCaptureContents(Scene);
 }
 
@@ -246,8 +256,22 @@ FTextureRead* UTempoCamera::MakeTextureRead() const
 	check(GetWorld());
 
 	return bDepthEnabled ?
-		static_cast<FTextureRead*>(new TTextureRead<FCameraPixelWithDepth>(SizeXY, SequenceId, GetWorld()->GetTimeSeconds(), GetOwnerName(), GetSensorName(), MinDepth, MaxDepth)):
-		static_cast<FTextureRead*>(new TTextureRead<FCameraPixelNoDepth>(SizeXY, SequenceId, GetWorld()->GetTimeSeconds(), GetOwnerName(), GetSensorName()));
+		static_cast<FTextureRead*>(new TTextureRead<FCameraPixelWithDepth>(
+				SizeXY, 
+				SequenceId, 
+				GetWorld()->GetTimeSeconds(), 
+				GetOwnerName(), 
+				GetSensorName(), 
+				bBoundingBoxEnabled,
+				MinDepth, 
+				MaxDepth)) :
+		static_cast<FTextureRead*>(new TTextureRead<FCameraPixelNoDepth>(
+				SizeXY, 
+				SequenceId, 
+				GetWorld()->GetTimeSeconds(), 
+				GetOwnerName(), 
+				GetSensorName(),
+				bBoundingBoxEnabled));
 }
 
 TFuture<void> UTempoCamera::DecodeAndRespond(TUniquePtr<FTextureRead> TextureRead)
@@ -396,4 +420,17 @@ void UTempoCamera::ApplyDepthEnabled()
 	}
 
 	InitRenderTarget();
+}
+
+void UTempoCamera::SetBoundingBoxEnabled(bool bBoundingBoxEnabledIn)
+{
+    if (bBoundingBoxEnabled == bBoundingBoxEnabledIn)
+    {
+        return;
+    }
+
+    UE_LOG(LogTempoCamera, Display, TEXT("Setting owner: %s camera: %s bounding box enabled: %d"), 
+           *GetOwnerName(), *GetSensorName(), bBoundingBoxEnabledIn);
+
+    bBoundingBoxEnabled = bBoundingBoxEnabledIn;
 }

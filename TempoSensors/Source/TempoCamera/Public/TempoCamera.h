@@ -86,10 +86,12 @@ struct FBoundingBoxesRequest
 template <>
 struct TTextureRead<FCameraPixelWithDepth> : TTextureReadBase<FCameraPixelWithDepth>
 {
-	TTextureRead(const FIntPoint& ImageSizeIn, int32 SequenceIdIn, double CaptureTimeIn, const FString& OwnerNameIn, const FString& SensorNameIn, float MinDepthIn, float MaxDepthIn)
-	   : TTextureReadBase(ImageSizeIn, SequenceIdIn, CaptureTimeIn, OwnerNameIn, SensorNameIn), MinDepth(MinDepthIn), MaxDepth(MaxDepthIn)
-	{
-	}
+	TTextureRead(const FIntPoint& ImageSizeIn, int32 SequenceIdIn, double CaptureTimeIn, const FString& OwnerNameIn, const FString& SensorNameIn, bool bBoundingBoxEnabledIn, float MinDepthIn, float MaxDepthIn)
+    : TTextureReadBase(ImageSizeIn, SequenceIdIn, CaptureTimeIn, OwnerNameIn, SensorNameIn, bBoundingBoxEnabledIn)
+    , MinDepth(MinDepthIn)
+    , MaxDepth(MaxDepthIn)
+{
+}
 	
 	virtual FName GetType() const override { return TEXT("WithDepth"); }
 
@@ -158,6 +160,8 @@ protected:
 
 	void ApplyDepthEnabled();
 
+	void SetBoundingBoxEnabled(bool bBoundingBoxEnabledIn);
+
 	// Whether this camera can measure depth. Disabled when not requested to optimize performance.
 	UPROPERTY(VisibleAnywhere, Category="Depth")
 	bool bDepthEnabled = false;
@@ -169,6 +173,9 @@ protected:
 	// The maximum depth this camera can measure (if depth is enabled). Will be set to UTempoSensorsSettings::MaxCameraDepth.
 	UPROPERTY(VisibleAnywhere, Category="Depth")
 	float MaxDepth = 100000.0; // 1km
+
+	UPROPERTY(VisibleAnywhere, Category="BoundingBox")
+	bool bBoundingBoxEnabled = false;
 
 	UPROPERTY(VisibleAnywhere)
 	UMaterialInstanceDynamic* PostProcessMaterialInstance= nullptr;

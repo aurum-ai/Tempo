@@ -27,8 +27,19 @@ struct FTextureRead
 		EReadComplete = 2
 	};
 	
-	FTextureRead(const FIntPoint& ImageSizeIn, int32 SequenceIdIn, double CaptureTimeIn, const FString& OwnerNameIn, const FString& SensorNameIn)
-		: ImageSize(ImageSizeIn), SequenceId(SequenceIdIn), CaptureTime(CaptureTimeIn), OwnerName(OwnerNameIn), SensorName(SensorNameIn), State(State::EAwaitingRender) {}
+	FTextureRead(const FIntPoint& ImageSizeIn, 
+							int32 SequenceIdIn,
+							double CaptureTimeIn, 
+							const FString& OwnerNameIn,
+							const FString& SensorNameIn, 
+							bool bBoundingBoxEnabledIn)
+		: ImageSize(ImageSizeIn),
+		  SequenceId(SequenceIdIn),
+			CaptureTime(CaptureTimeIn),
+			OwnerName(OwnerNameIn),
+			SensorName(SensorNameIn),
+			bBoundingBoxEnabled(bBoundingBoxEnabledIn),
+			State(State::EAwaitingRender) {}
 
 	virtual ~FTextureRead() {}
 
@@ -51,16 +62,17 @@ struct FTextureRead
 	double CaptureTime;
 	const FString OwnerName;
 	const FString SensorName;
+	bool bBoundingBoxEnabled;
 	TAtomic<State> State;
 };
 
 template <typename PixelType>
 struct TTextureReadBase : FTextureRead
 {
-	TTextureReadBase(const FIntPoint& ImageSizeIn, int32 SequenceIdIn, double CaptureTimeIn, const FString& OwnerNameIn, const FString& SensorNameIn)
-		   : FTextureRead(ImageSizeIn, SequenceIdIn, CaptureTimeIn, OwnerNameIn, SensorNameIn)
+	TTextureReadBase(const FIntPoint& ImageSizeIn, int32 SequenceIdIn, double CaptureTimeIn, const FString& OwnerNameIn, const FString& SensorNameIn, bool bBoundingBoxEnabledIn)
+    : FTextureRead(ImageSizeIn, SequenceIdIn, CaptureTimeIn, OwnerNameIn, SensorNameIn, bBoundingBoxEnabledIn)
 	{
-		Image.SetNumUninitialized(ImageSize.X * ImageSize.Y);
+			Image.SetNumUninitialized(ImageSize.X * ImageSize.Y);
 	}
 
 	virtual void Read(const FRenderTarget* RenderTarget, const FTextureRHIRef& TextureRHICopy) override
@@ -88,7 +100,11 @@ struct TTextureReadBase : FTextureRead
 		GDynamicRHI->RHIMapStagingSurface(TextureRHICopy, Fence, OutBuffer, SurfaceWidth, SurfaceHeight, RHICmdList.GetGPUMask().ToIndex());
 		FMemory::Memcpy(Image.GetData(), OutBuffer, SurfaceWidth * SurfaceHeight * sizeof(PixelType));
 		RHICmdList.UnmapStagingSurface(TextureRHICopy);
-		ComputeBoundingBoxes();
+
+		if (bBoundingBoxEnabled)
+		{
+			ComputeBoundingBoxes();
+		}
 
 		State = State::EReadComplete;
 	}

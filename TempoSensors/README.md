@@ -11,11 +11,13 @@
 
 ## Sensor Types
 ### TempoCamera
-Currently, `TempoSensors` has only one sensor type: `TempoCamera`. However, `TempoCamera` can capture three different types of images: color, semantic label, and depth. `TempoCamera` uses two tricks to improve usability and performance:
+Currently, `TempoSensors` has only one sensor type: `TempoCamera`. However, `TempoCamera` can capture several different types of data: color images, semantic label images, depth images, and bounding boxes. `TempoCamera` uses several tricks to improve usability and performance:
 - It can capture all three of the above image types in a single render pass, thanks to a custom 8-byte pixel buffer and a "reinterpret cast" from floating point to fixed point depth in the `M_CameraPostProcess_WithDepth` post-process material.
 - It uses a custom stencil buffer to capture labels, but it can also use visually-imperceptible changes in a material's subsurface color to override the label on certain parts of an object (for example, to label lane lines differently from the road itself).
 
-`TempoCamera` leverages `UTempoSceneCaptureComponent2D`'s ability to dynamically change render target format and pixel buffer type to enable or disable depth rendering as needed, since adding depth incurs a not-insignificant performance hit (depth is rendered either way, but copying it doubles the size of the pixel buffer). Semantic labels are effectively free (since there are no 3-byte pixel buffers), so `TempoCamera` has only two modes (depth and no-depth).
+`TempoCamera` leverages `UTempoSceneCaptureComponent2D`'s ability to dynamically change render target format and pixel buffer type to enable or disable depth rendering as needed, since adding depth incurs a not-insignificant performance hit (depth is rendered either way, but copying it doubles the size of the pixel buffer). Semantic labels are effectively free (since there are no 3-byte pixel buffers), so `TempoCamera` has only two modes (depth and no-depth). Similarly, bounding box computation can be enabled/disabled as needed.
+
+These features are automatically enabled when requested by a client and disabled when no longer needed. Semantic labels are always available since they have minimal performance impact.
 
 ## TempoLabels
 `TempoLabels` includes the `UTempoActorLabeler` subsystem, which "labels" meshes in the scene by assigning values to their custom depth stencil on `BeginPlay` and whenever a component is created.
