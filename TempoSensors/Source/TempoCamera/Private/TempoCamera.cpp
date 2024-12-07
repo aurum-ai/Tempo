@@ -81,6 +81,32 @@ void RespondToLabelRequests(const TTextureRead<PixelType>* TextureRead, const TA
 	}
 }
 
+template <typename PixelType>
+void RespondToBoundingBoxRequests(const TTextureRead<PixelType>* TextureRead, const TArray<FBoundingBoxesRequest>& Requests, float TransmissionTime)
+{
+	TempoCamera::BoundingBoxes BoundingBoxes;
+	
+	// Fill header
+	BoundingBoxes.mutable_header()->set_sequence_id(TextureRead->SequenceId);
+	BoundingBoxes.mutable_header()->set_capture_time(TextureRead->CaptureTime);
+	BoundingBoxes.mutable_header()->set_transmission_time(TransmissionTime);
+	BoundingBoxes.mutable_header()->set_sensor_name(TCHAR_TO_UTF8(*FString::Printf(TEXT("%s/%s"), *TextureRead->OwnerName, *TextureRead->SensorName)));
+
+	// Add a test bounding box
+	TempoCamera::BoundingBox2D* Box = BoundingBoxes.add_boxes();
+	Box->set_label(1);  // Test label
+	Box->set_x_min(0.2f);  // Test coordinates
+	Box->set_y_min(0.3f);
+	Box->set_x_max(0.8f);
+	Box->set_y_max(0.7f);
+
+	// Send response to all requesters
+	for (auto RequestIt = Requests.CreateConstIterator(); RequestIt; ++RequestIt)
+	{
+		RequestIt->ResponseContinuation.ExecuteIfBound(BoundingBoxes, grpc::Status_OK);
+	}
+}
+
 void TTextureRead<FCameraPixelNoDepth>::RespondToRequests(const TArray<FColorImageRequest>& Requests, float TransmissionTime) const
 {
 	RespondToColorRequests(this, Requests, TransmissionTime);
@@ -128,52 +154,12 @@ void TTextureRead<FCameraPixelWithDepth>::RespondToRequests(const TArray<FDepthI
 
 void TTextureRead<FCameraPixelNoDepth>::RespondToRequests(const TArray<FBoundingBoxesRequest>& Requests, float TransmissionTime) const
 {
-	TempoCamera::BoundingBoxes BoundingBoxes;
-	
-	// Fill header
-	BoundingBoxes.mutable_header()->set_sequence_id(SequenceId);
-	BoundingBoxes.mutable_header()->set_capture_time(CaptureTime);
-	BoundingBoxes.mutable_header()->set_transmission_time(TransmissionTime);
-	BoundingBoxes.mutable_header()->set_sensor_name(TCHAR_TO_UTF8(*FString::Printf(TEXT("%s/%s"), *OwnerName, *SensorName)));
-
-	// Add a test bounding box
-	TempoCamera::BoundingBox2D* Box = BoundingBoxes.add_boxes();
-	Box->set_label(1);  // Test label
-	Box->set_x_min(0.2f);  // Test coordinates
-	Box->set_y_min(0.3f);
-	Box->set_x_max(0.8f);
-	Box->set_y_max(0.7f);
-
-	// Send response to all requesters
-	for (auto RequestIt = Requests.CreateConstIterator(); RequestIt; ++RequestIt)
-	{
-		RequestIt->ResponseContinuation.ExecuteIfBound(BoundingBoxes, grpc::Status_OK);
-	}
+	RespondToBoundingBoxRequests(this, Requests, TransmissionTime);
 }
 
 void TTextureRead<FCameraPixelWithDepth>::RespondToRequests(const TArray<FBoundingBoxesRequest>& Requests, float TransmissionTime) const
 {
-	TempoCamera::BoundingBoxes BoundingBoxes;
-	
-	// Fill header
-	BoundingBoxes.mutable_header()->set_sequence_id(SequenceId);
-	BoundingBoxes.mutable_header()->set_capture_time(CaptureTime);
-	BoundingBoxes.mutable_header()->set_transmission_time(TransmissionTime);
-	BoundingBoxes.mutable_header()->set_sensor_name(TCHAR_TO_UTF8(*FString::Printf(TEXT("%s/%s"), *OwnerName, *SensorName)));
-
-	// Add a test bounding box
-	TempoCamera::BoundingBox2D* Box = BoundingBoxes.add_boxes();
-	Box->set_label(1);  // Test label
-	Box->set_x_min(0.2f);  // Test coordinates
-	Box->set_y_min(0.3f);
-	Box->set_x_max(0.8f);
-	Box->set_y_max(0.7f);
-
-	// Send response to all requesters
-	for (auto RequestIt = Requests.CreateConstIterator(); RequestIt; ++RequestIt)
-	{
-		RequestIt->ResponseContinuation.ExecuteIfBound(BoundingBoxes, grpc::Status_OK);
-	}
+	RespondToBoundingBoxRequests(this, Requests, TransmissionTime);
 }
 
 UTempoCamera::UTempoCamera()
