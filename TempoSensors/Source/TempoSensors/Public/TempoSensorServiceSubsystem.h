@@ -19,7 +19,7 @@ namespace TempoSensors
 {
 	class AvailableSensorsRequest;
 	class AvailableSensorsResponse;
-}
+} // namespace TempoSensors
 
 namespace TempoCamera
 {
@@ -31,13 +31,13 @@ namespace TempoCamera
 	class DepthImage;
 	class LabelImage;
 	class BoundingBoxes;
-}
+} // namespace TempoCamera
 
 UCLASS()
 class TEMPOSENSORS_API UTempoSensorServiceSubsystem : public UTempoGameWorldSubsystem, public ITempoScriptable
 {
 	GENERATED_BODY()
-	
+
 public:
 	virtual void RegisterScriptingServices(FTempoScriptingServer& ScriptingServer) override;
 

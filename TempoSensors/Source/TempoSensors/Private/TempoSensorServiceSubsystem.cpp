@@ -31,8 +31,7 @@ void UTempoSensorServiceSubsystem::RegisterScriptingServices(FTempoScriptingServ
 		StreamingRequestHandler(&SensorAsyncService::RequestStreamColorImages, &UTempoSensorServiceSubsystem::StreamColorImages),
 		StreamingRequestHandler(&SensorAsyncService::RequestStreamDepthImages, &UTempoSensorServiceSubsystem::StreamDepthImages),
 		StreamingRequestHandler(&SensorAsyncService::RequestStreamLabelImages, &UTempoSensorServiceSubsystem::StreamLabelImages),
-		StreamingRequestHandler(&SensorAsyncService::RequestStreamBoundingBoxes, &UTempoSensorServiceSubsystem::StreamBoundingBoxes)
-		);
+		StreamingRequestHandler(&SensorAsyncService::RequestStreamBoundingBoxes, &UTempoSensorServiceSubsystem::StreamBoundingBoxes));
 }
 
 void UTempoSensorServiceSubsystem::Initialize(FSubsystemCollectionBase& Collection)
@@ -56,12 +55,11 @@ void UTempoSensorServiceSubsystem::Deinitialize()
 }
 
 void UTempoSensorServiceSubsystem::OnRenderFrameCompleted() const
-{	
+{
 	if (GetDefault<UTempoCoreSettings>()->GetTimeMode() == ETimeMode::FixedStep)
 	{
 		bool bAnySensorAwaitingRender = false;
-		ForEachActiveSensor([&bAnySensorAwaitingRender](ITempoSensorInterface* Sensor)
-		{
+		ForEachActiveSensor([&bAnySensorAwaitingRender](ITempoSensorInterface* Sensor) {
 			bAnySensorAwaitingRender |= Sensor->IsAwaitingRender();
 		});
 		if (bAnySensorAwaitingRender)
@@ -72,8 +70,7 @@ void UTempoSensorServiceSubsystem::OnRenderFrameCompleted() const
 		}
 	}
 
-	ForEachActiveSensor([](ITempoSensorInterface* Sensor)
-	{
+	ForEachActiveSensor([](ITempoSensorInterface* Sensor) {
 		Sensor->OnRenderCompleted();
 	});
 }
@@ -87,16 +84,14 @@ void UTempoSensorServiceSubsystem::OnWorldTickStart(UWorld* World, ELevelTick Ti
 		if (GetDefault<UTempoCoreSettings>()->GetTimeMode() == ETimeMode::FixedStep)
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(TempoSensorsWaitForMeasurements);
-			ForEachActiveSensor([](const ITempoSensorInterface* Sensor)
-			{
+			ForEachActiveSensor([](const ITempoSensorInterface* Sensor) {
 				Sensor->BlockUntilMeasurementsReady();
 			});
 		}
 
 		TRACE_CPUPROFILER_EVENT_SCOPE(TempoSensorsSendMeasurements);
 		TArray<TFuture<void>> SendMeasurementsTasks;
-		ForEachActiveSensor([&SendMeasurementsTasks](ITempoSensorInterface* Sensor)
-		{
+		ForEachActiveSensor([&SendMeasurementsTasks](ITempoSensorInterface* Sensor) {
 			if (TOptional<TFuture<void>> Future = Sensor->SendMeasurements())
 			{
 				SendMeasurementsTasks.Add(MoveTemp(Future.GetValue()));
@@ -114,19 +109,19 @@ TempoSensors::MeasurementType ToProtoMeasurementType(EMeasurementType ImageType)
 {
 	switch (ImageType)
 	{
-	case EMeasurementType::COLOR_IMAGE:
+		case EMeasurementType::COLOR_IMAGE:
 		{
 			return TempoSensors::COLOR_IMAGE;
 		}
-	case EMeasurementType::DEPTH_IMAGE:
+		case EMeasurementType::DEPTH_IMAGE:
 		{
 			return TempoSensors::DEPTH_IMAGE;
 		}
-	case EMeasurementType::LABEL_IMAGE:
+		case EMeasurementType::LABEL_IMAGE:
 		{
 			return TempoSensors::LABEL_IMAGE;
 		}
-	default:
+		default:
 		{
 			checkf(false, TEXT("Unhandled image type"));
 			return TempoSensors::COLOR_IMAGE;
@@ -137,7 +132,7 @@ TempoSensors::MeasurementType ToProtoMeasurementType(EMeasurementType ImageType)
 void UTempoSensorServiceSubsystem::ForEachActiveSensor(const TFunction<void(ITempoSensorInterface*)>& Callback) const
 {
 	check(GetWorld());
-	
+
 	for (TObjectIterator<UActorComponent> ComponentIt; ComponentIt; ++ComponentIt)
 	{
 		UActorComponent* Component = *ComponentIt;
@@ -159,8 +154,7 @@ void UTempoSensorServiceSubsystem::GetAvailableSensors(const TempoSensors::Avail
 {
 	AvailableSensorsResponse Response;
 
-	ForEachActiveSensor([&Response](const ITempoSensorInterface* Sensor)
-	{
+	ForEachActiveSensor([&Response](const ITempoSensorInterface* Sensor) {
 		auto* AvailableSensor = Response.add_available_sensors();
 		AvailableSensor->set_owner(TCHAR_TO_UTF8(*Sensor->GetOwnerName()));
 		AvailableSensor->set_name(TCHAR_TO_UTF8(*Sensor->GetSensorName()));
@@ -178,7 +172,7 @@ template <typename RequestType, typename ResponseType>
 void UTempoSensorServiceSubsystem::RequestImages(const RequestType& Request, const TResponseDelegate<ResponseType>& ResponseContinuation) const
 {
 	check(GetWorld());
-	
+
 	TMap<FString, TArray<UTempoCamera*>> OwnersToComponents;
 	for (TObjectIterator<UTempoCamera> ComponentIt; ComponentIt; ++ComponentIt)
 	{
@@ -187,7 +181,7 @@ void UTempoSensorServiceSubsystem::RequestImages(const RequestType& Request, con
 			OwnersToComponents.FindOrAdd(ComponentIt->GetOwnerName()).Add(*ComponentIt);
 		}
 	}
-	
+
 	const FString RequestedOwnerName(UTF8_TO_TCHAR(Request.owner_name().c_str()));
 	const FString RequestedSensorName(UTF8_TO_TCHAR(Request.sensor_name().c_str()));
 
@@ -223,14 +217,14 @@ void UTempoSensorServiceSubsystem::RequestImages(const RequestType& Request, con
 			ResponseContinuation.ExecuteIfBound(ResponseType(), grpc::Status(grpc::StatusCode::NOT_FOUND, "Did not find a sensor with the specified name"));
 			return;
 		}
-		
+
 		FoundComponent->RequestMeasurement(Request, ResponseContinuation);
 		return;
 	}
 
 	for (const auto& OwnerComponents : OwnersToComponents)
 	{
-		const FString& OwnerName = OwnerComponents.Key;
+		const FString&				 OwnerName = OwnerComponents.Key;
 		const TArray<UTempoCamera*>& Components = OwnerComponents.Value;
 		if (OwnerName.Equals(RequestedOwnerName, ESearchCase::IgnoreCase))
 		{
@@ -264,8 +258,8 @@ void UTempoSensorServiceSubsystem::StreamLabelImages(const TempoCamera::LabelIma
 	RequestImages<TempoCamera::LabelImageRequest, TempoCamera::LabelImage>(Request, ResponseContinuation);
 }
 
-void UTempoSensorServiceSubsystem::StreamBoundingBoxes(const TempoCamera::BoundingBoxesRequest& Request, 
-                                                      const TResponseDelegate<TempoCamera::BoundingBoxes>& ResponseContinuation) const
+void UTempoSensorServiceSubsystem::StreamBoundingBoxes(const TempoCamera::BoundingBoxesRequest& Request,
+	const TResponseDelegate<TempoCamera::BoundingBoxes>&										ResponseContinuation) const
 {
 	RequestImages<TempoCamera::BoundingBoxesRequest, TempoCamera::BoundingBoxes>(Request, ResponseContinuation);
 }

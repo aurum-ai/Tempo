@@ -15,13 +15,14 @@ namespace
 	// This is the largest float less than the largest uint32 (2^32 - 1).
 	// We use it to discretize the depth buffer into a uint32 pixel.
 	constexpr float kMaxDiscreteDepth = 4294967040.0;
-}
+} // namespace
 
 FTempoCameraIntrinsics::FTempoCameraIntrinsics(const FIntPoint& SizeXY, float HorizontalFOV)
-	: Fx(SizeXY.X / 2.0 / FMath::Tan(FMath::DegreesToRadians(HorizontalFOV) / 2.0)),
-	  Fy(Fx), // Fx == Fy means the sensor's pixels are square, not that the FOV is symmetric.
-	  Cx(SizeXY.X / 2.0),
-	  Cy(SizeXY.Y / 2.0) {}
+	: Fx(SizeXY.X / 2.0 / FMath::Tan(FMath::DegreesToRadians(HorizontalFOV) / 2.0)), Fy(Fx), // Fx == Fy means the sensor's pixels are square, not that the FOV is symmetric.
+	Cx(SizeXY.X / 2.0)
+	, Cy(SizeXY.Y / 2.0)
+{
+}
 
 template <typename PixelType>
 void RespondToColorRequests(const TTextureRead<PixelType>* TextureRead, const TArray<FColorImageRequest>& Requests, float TransmissionTime)
@@ -84,29 +85,29 @@ void RespondToLabelRequests(const TTextureRead<PixelType>* TextureRead, const TA
 template <typename PixelType>
 void RespondToBoundingBoxRequests(const TTextureRead<PixelType>* TextureRead, const TArray<FBoundingBoxesRequest>& Requests, float TransmissionTime)
 {
-    TempoCamera::BoundingBoxes BoundingBoxes;
+	TempoCamera::BoundingBoxes BoundingBoxes;
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(TempoCameraDecodeBoundingBoxes);
+		for (const FLabeledBounds& Bounds : TextureRead->LabeledBounds)
 		{
-			TRACE_CPUPROFILER_EVENT_SCOPE(TempoCameraDecodeBoundingBoxes);
-			for (const FLabeledBounds& Bounds : TextureRead->LabeledBounds)
-			{
-				auto* BoundingBox = BoundingBoxes.add_boxes();
-				BoundingBox->set_label(Bounds.Label);
-				BoundingBox->set_x_min(Bounds.Bounds.Min.X);
-				BoundingBox->set_y_min(Bounds.Bounds.Min.Y);
-				BoundingBox->set_x_max(Bounds.Bounds.Max.X);
-				BoundingBox->set_y_max(Bounds.Bounds.Max.Y);
-			}
-			BoundingBoxes.mutable_header()->set_sequence_id(TextureRead->SequenceId);
-			BoundingBoxes.mutable_header()->set_capture_time(TextureRead->CaptureTime);
-			BoundingBoxes.mutable_header()->set_transmission_time(TransmissionTime);
-			BoundingBoxes.mutable_header()->set_sensor_name(TCHAR_TO_UTF8(*FString::Printf(TEXT("%s/%s"), *TextureRead->OwnerName, *TextureRead->SensorName)));
+			auto* BoundingBox = BoundingBoxes.add_boxes();
+			BoundingBox->set_label(Bounds.Label);
+			BoundingBox->set_x_min(Bounds.Bounds.Min.X);
+			BoundingBox->set_y_min(Bounds.Bounds.Min.Y);
+			BoundingBox->set_x_max(Bounds.Bounds.Max.X);
+			BoundingBox->set_y_max(Bounds.Bounds.Max.Y);
 		}
-    
-    TRACE_CPUPROFILER_EVENT_SCOPE(TempoCameraRespondBoundingBoxes);
-    for (auto RequestIt = Requests.CreateConstIterator(); RequestIt; ++RequestIt)
-    {
-        RequestIt->ResponseContinuation.ExecuteIfBound(BoundingBoxes, grpc::Status_OK);
-    }
+		BoundingBoxes.mutable_header()->set_sequence_id(TextureRead->SequenceId);
+		BoundingBoxes.mutable_header()->set_capture_time(TextureRead->CaptureTime);
+		BoundingBoxes.mutable_header()->set_transmission_time(TransmissionTime);
+		BoundingBoxes.mutable_header()->set_sensor_name(TCHAR_TO_UTF8(*FString::Printf(TEXT("%s/%s"), *TextureRead->OwnerName, *TextureRead->SensorName)));
+	}
+
+	TRACE_CPUPROFILER_EVENT_SCOPE(TempoCameraRespondBoundingBoxes);
+	for (auto RequestIt = Requests.CreateConstIterator(); RequestIt; ++RequestIt)
+	{
+		RequestIt->ResponseContinuation.ExecuteIfBound(BoundingBoxes, grpc::Status_OK);
+	}
 }
 
 void TTextureRead<FCameraPixelNoDepth>::RespondToRequests(const TArray<FColorImageRequest>& Requests, float TransmissionTime) const
@@ -198,7 +199,7 @@ void UTempoCamera::UpdateSceneCaptureContents(FSceneInterface* Scene)
 		// If a client is requesting depth, start rendering it.
 		SetDepthEnabled(true);
 	}
-	
+
 	if (bDepthEnabled && PendingDepthImageRequests.IsEmpty())
 	{
 		// If no client is requesting depth, stop rendering it.
@@ -209,7 +210,7 @@ void UTempoCamera::UpdateSceneCaptureContents(FSceneInterface* Scene)
 	{
 		SetBoundingBoxEnabled(true);
 	}
-	
+
 	if (bBoundingBoxEnabled && PendingBoundingBoxRequests.IsEmpty())
 	{
 		SetBoundingBoxEnabled(false);
@@ -220,22 +221,22 @@ void UTempoCamera::UpdateSceneCaptureContents(FSceneInterface* Scene)
 
 void UTempoCamera::RequestMeasurement(const TempoCamera::ColorImageRequest& Request, const TResponseDelegate<TempoCamera::ColorImage>& ResponseContinuation)
 {
-	PendingColorImageRequests.Add({ Request, ResponseContinuation});
+	PendingColorImageRequests.Add({ Request, ResponseContinuation });
 }
 
 void UTempoCamera::RequestMeasurement(const TempoCamera::LabelImageRequest& Request, const TResponseDelegate<TempoCamera::LabelImage>& ResponseContinuation)
 {
-	PendingLabelImageRequests.Add({ Request, ResponseContinuation});
+	PendingLabelImageRequests.Add({ Request, ResponseContinuation });
 }
 
 void UTempoCamera::RequestMeasurement(const TempoCamera::DepthImageRequest& Request, const TResponseDelegate<TempoCamera::DepthImage>& ResponseContinuation)
 {
-	PendingDepthImageRequests.Add({ Request, ResponseContinuation});
+	PendingDepthImageRequests.Add({ Request, ResponseContinuation });
 }
 
 void UTempoCamera::RequestMeasurement(const TempoCamera::BoundingBoxesRequest& Request, const TResponseDelegate<TempoCamera::BoundingBoxes>& ResponseContinuation)
 {
-	PendingBoundingBoxRequests.Add({ Request, ResponseContinuation});
+	PendingBoundingBoxRequests.Add({ Request, ResponseContinuation });
 }
 
 FTempoCameraIntrinsics UTempoCamera::GetIntrinsics() const
@@ -245,33 +246,29 @@ FTempoCameraIntrinsics UTempoCamera::GetIntrinsics() const
 
 bool UTempoCamera::HasPendingRequests() const
 {
-	return !PendingColorImageRequests.IsEmpty() || 
-		   !PendingLabelImageRequests.IsEmpty() || 
-		   !PendingDepthImageRequests.IsEmpty() ||
-		   !PendingBoundingBoxRequests.IsEmpty();
+	return !PendingColorImageRequests.IsEmpty() || !PendingLabelImageRequests.IsEmpty() || !PendingDepthImageRequests.IsEmpty() || !PendingBoundingBoxRequests.IsEmpty();
 }
 
 FTextureRead* UTempoCamera::MakeTextureRead() const
 {
 	check(GetWorld());
 
-	return bDepthEnabled ?
-		static_cast<FTextureRead*>(new TTextureRead<FCameraPixelWithDepth>(
-				SizeXY, 
-				SequenceId, 
-				GetWorld()->GetTimeSeconds(), 
-				GetOwnerName(), 
-				GetSensorName(), 
-				bBoundingBoxEnabled,
-				MinDepth, 
-				MaxDepth)) :
-		static_cast<FTextureRead*>(new TTextureRead<FCameraPixelNoDepth>(
-				SizeXY, 
-				SequenceId, 
-				GetWorld()->GetTimeSeconds(), 
-				GetOwnerName(), 
-				GetSensorName(),
-				bBoundingBoxEnabled));
+	return bDepthEnabled ? static_cast<FTextureRead*>(new TTextureRead<FCameraPixelWithDepth>(
+							   SizeXY,
+							   SequenceId,
+							   GetWorld()->GetTimeSeconds(),
+							   GetOwnerName(),
+							   GetSensorName(),
+							   bBoundingBoxEnabled,
+							   MinDepth,
+							   MaxDepth))
+						 : static_cast<FTextureRead*>(new TTextureRead<FCameraPixelNoDepth>(
+							   SizeXY,
+							   SequenceId,
+							   GetWorld()->GetTimeSeconds(),
+							   GetOwnerName(),
+							   GetSensorName(),
+							   bBoundingBoxEnabled));
 }
 
 TFuture<void> UTempoCamera::DecodeAndRespond(TUniquePtr<FTextureRead> TextureRead)
@@ -280,15 +277,7 @@ TFuture<void> UTempoCamera::DecodeAndRespond(TUniquePtr<FTextureRead> TextureRea
 
 	const bool bSupportsDepth = TextureRead->GetType() == TEXT("WithDepth");
 
-	TFuture<void> Future = Async(EAsyncExecution::TaskGraph, [
-		TextureRead = MoveTemp(TextureRead),
-		ColorImageRequests = PendingColorImageRequests,
-		LabelImageRequests = PendingLabelImageRequests,
-		DepthImageRequests = PendingDepthImageRequests,
-		BoundingBoxRequests = PendingBoundingBoxRequests,
-		TransmissionTimeCpy = TransmissionTime
-		]
-	{
+	TFuture<void> Future = Async(EAsyncExecution::TaskGraph, [TextureRead = MoveTemp(TextureRead), ColorImageRequests = PendingColorImageRequests, LabelImageRequests = PendingLabelImageRequests, DepthImageRequests = PendingDepthImageRequests, BoundingBoxRequests = PendingBoundingBoxRequests, TransmissionTimeCpy = TransmissionTime] {
 		TRACE_CPUPROFILER_EVENT_SCOPE(TempoCameraDecodeAndRespond);
 
 		if (TextureRead->GetType() == TEXT("WithDepth"))
@@ -313,7 +302,7 @@ TFuture<void> UTempoCamera::DecodeAndRespond(TUniquePtr<FTextureRead> TextureRea
 	{
 		PendingDepthImageRequests.Empty();
 	}
-	
+
 	return Future;
 }
 
@@ -339,12 +328,12 @@ void UTempoCamera::ApplyDepthEnabled()
 {
 	const UTempoSensorsSettings* TempoSensorsSettings = GetDefault<UTempoSensorsSettings>();
 	check(TempoSensorsSettings);
-	
+
 	if (bDepthEnabled)
 	{
 		RenderTargetFormat = ETextureRenderTargetFormat::RTF_RGBA16f;
 		PixelFormatOverride = EPixelFormat::PF_A16B16G16R16;
-		
+
 		if (const TObjectPtr<UMaterialInterface> PostProcessMaterialWithDepth = GetDefault<UTempoSensorsSettings>()->GetCameraPostProcessMaterialWithDepth())
 		{
 			PostProcessMaterialInstance = UMaterialInstanceDynamic::Create(PostProcessMaterialWithDepth.Get(), this);
@@ -369,14 +358,14 @@ void UTempoCamera::ApplyDepthEnabled()
 		{
 			UE_LOG(LogTempoCamera, Error, TEXT("PostProcessMaterialWithDepth is not set in TempoSensors settings"));
 		}
-		
+
 		RenderTargetFormat = ETextureRenderTargetFormat::RTF_RGBA8; // Corresponds to PF_B8G8R8A8
 		PixelFormatOverride = EPixelFormat::PF_Unknown;
 	}
 
-	UDataTable* SemanticLabelTable = GetDefault<UTempoSensorsSettings>()->GetSemanticLabelTable();
-	FName OverridableLabelRowName = TempoSensorsSettings->GetOverridableLabelRowName();
-	FName OverridingLabelRowName = TempoSensorsSettings->GetOverridingLabelRowName();
+	UDataTable*		 SemanticLabelTable = GetDefault<UTempoSensorsSettings>()->GetSemanticLabelTable();
+	FName			 OverridableLabelRowName = TempoSensorsSettings->GetOverridableLabelRowName();
+	FName			 OverridingLabelRowName = TempoSensorsSettings->GetOverridingLabelRowName();
 	TOptional<int32> OverridableLabel;
 	TOptional<int32> OverridingLabel;
 	if (!OverridableLabelRowName.IsNone())
@@ -385,19 +374,18 @@ void UTempoCamera::ApplyDepthEnabled()
 			[&OverridableLabelRowName,
 				&OverridingLabelRowName,
 				&OverridableLabel,
-				&OverridingLabel](const FName& Key, const FSemanticLabel& Value)
-		{
-			if (Key == OverridableLabelRowName)
-			{
-				OverridableLabel = Value.Label;
-			}
-			if (Key == OverridingLabelRowName)
-			{
-				OverridingLabel = Value.Label;
-			}
-		});
+				&OverridingLabel](const FName& Key, const FSemanticLabel& Value) {
+				if (Key == OverridableLabelRowName)
+				{
+					OverridableLabel = Value.Label;
+				}
+				if (Key == OverridingLabelRowName)
+				{
+					OverridingLabel = Value.Label;
+				}
+			});
 	}
-	
+
 	if (PostProcessMaterialInstance)
 	{
 		if (OverridableLabel.IsSet() && OverridingLabel.IsSet())
@@ -408,7 +396,6 @@ void UTempoCamera::ApplyDepthEnabled()
 		else
 		{
 			PostProcessMaterialInstance->SetScalarParameterValue(TEXT("OverridingLabel"), 0.0);
-
 		}
 		PostProcessSettings.WeightedBlendables.Array.Empty();
 		PostProcessSettings.WeightedBlendables.Array.Init(FWeightedBlendable(1.0, PostProcessMaterialInstance), 1);
@@ -424,13 +411,13 @@ void UTempoCamera::ApplyDepthEnabled()
 
 void UTempoCamera::SetBoundingBoxEnabled(bool bBoundingBoxEnabledIn)
 {
-    if (bBoundingBoxEnabled == bBoundingBoxEnabledIn)
-    {
-        return;
-    }
+	if (bBoundingBoxEnabled == bBoundingBoxEnabledIn)
+	{
+		return;
+	}
 
-    UE_LOG(LogTempoCamera, Display, TEXT("Setting owner: %s camera: %s bounding box enabled: %d"), 
-           *GetOwnerName(), *GetSensorName(), bBoundingBoxEnabledIn);
+	UE_LOG(LogTempoCamera, Display, TEXT("Setting owner: %s camera: %s bounding box enabled: %d"),
+		*GetOwnerName(), *GetSensorName(), bBoundingBoxEnabledIn);
 
-    bBoundingBoxEnabled = bBoundingBoxEnabledIn;
+	bBoundingBoxEnabled = bBoundingBoxEnabledIn;
 }

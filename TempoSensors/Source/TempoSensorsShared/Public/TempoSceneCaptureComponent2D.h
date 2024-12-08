@@ -14,8 +14,8 @@
 // In the future we could add 3D, an actor reference, world coordinates, etc.
 struct FLabeledBounds
 {
-	uint8 Label; // Label similar to semantic segmentation
-	FBox2D Bounds; // Normalized [0,1] 
+	uint8  Label;  // Label similar to semantic segmentation
+	FBox2D Bounds; // Normalized [0,1]
 };
 
 struct FTextureRead
@@ -26,20 +26,14 @@ struct FTextureRead
 		EReading = 1,
 		EReadComplete = 2
 	};
-	
-	FTextureRead(const FIntPoint& ImageSizeIn, 
-							int32 SequenceIdIn,
-							double CaptureTimeIn, 
-							const FString& OwnerNameIn,
-							const FString& SensorNameIn, 
-							bool bBoundingBoxEnabledIn)
-		: ImageSize(ImageSizeIn),
-		  SequenceId(SequenceIdIn),
-			CaptureTime(CaptureTimeIn),
-			OwnerName(OwnerNameIn),
-			SensorName(SensorNameIn),
-			bBoundingBoxEnabled(bBoundingBoxEnabledIn),
-			State(State::EAwaitingRender) {}
+
+	FTextureRead(const FIntPoint& ImageSizeIn,
+		int32					  SequenceIdIn,
+		double					  CaptureTimeIn,
+		const FString&			  OwnerNameIn,
+		const FString&			  SensorNameIn,
+		bool					  bBoundingBoxEnabledIn)
+		: ImageSize(ImageSizeIn), SequenceId(SequenceIdIn), CaptureTime(CaptureTimeIn), OwnerName(OwnerNameIn), SensorName(SensorNameIn), bBoundingBoxEnabled(bBoundingBoxEnabledIn), State(State::EAwaitingRender) {}
 
 	virtual ~FTextureRead() {}
 
@@ -56,13 +50,13 @@ struct FTextureRead
 			FPlatformProcess::Sleep(1e-4);
 		}
 	}
-	
-	FIntPoint ImageSize;
-	int32 SequenceId;
-	double CaptureTime;
-	const FString OwnerName;
-	const FString SensorName;
-	bool bBoundingBoxEnabled;
+
+	FIntPoint	   ImageSize;
+	int32		   SequenceId;
+	double		   CaptureTime;
+	const FString  OwnerName;
+	const FString  SensorName;
+	bool		   bBoundingBoxEnabled;
 	TAtomic<State> State;
 };
 
@@ -70,9 +64,9 @@ template <typename PixelType>
 struct TTextureReadBase : FTextureRead
 {
 	TTextureReadBase(const FIntPoint& ImageSizeIn, int32 SequenceIdIn, double CaptureTimeIn, const FString& OwnerNameIn, const FString& SensorNameIn, bool bBoundingBoxEnabledIn)
-    : FTextureRead(ImageSizeIn, SequenceIdIn, CaptureTimeIn, OwnerNameIn, SensorNameIn, bBoundingBoxEnabledIn)
+		: FTextureRead(ImageSizeIn, SequenceIdIn, CaptureTimeIn, OwnerNameIn, SensorNameIn, bBoundingBoxEnabledIn)
 	{
-			Image.SetNumUninitialized(ImageSize.X * ImageSize.Y);
+		Image.SetNumUninitialized(ImageSize.X * ImageSize.Y);
 	}
 
 	virtual void Read(const FRenderTarget* RenderTarget, const FTextureRHIRef& TextureRHICopy) override
@@ -112,51 +106,51 @@ struct TTextureReadBase : FTextureRead
 	virtual void ComputeBoundingBoxes() override
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(ComputeBoundingBoxes);
-		
+
 		TMap<uint8, FBox2D> LabelBounds;
 
 		{
-				TRACE_CPUPROFILER_EVENT_SCOPE(ScanPixelsForBounds);
-				for(int32 Y = 0; Y < ImageSize.Y; Y++)
+			TRACE_CPUPROFILER_EVENT_SCOPE(ScanPixelsForBounds);
+			for (int32 Y = 0; Y < ImageSize.Y; Y++)
+			{
+				for (int32 X = 0; X < ImageSize.X; X++)
 				{
-						for(int32 X = 0; X < ImageSize.X; X++) 
+					uint8 Label = Image[Y * ImageSize.X + X].Label();
+					if (Label > 0) // Skip background (usually label 0)
+					{
+						FVector2D PixelPos(X, Y);
+						if (auto* Bounds = LabelBounds.Find(Label))
 						{
-								uint8 Label = Image[Y * ImageSize.X + X].Label();
-								if(Label > 0) // Skip background (usually label 0)
-								{
-										FVector2D PixelPos(X, Y);
-										if(auto* Bounds = LabelBounds.Find(Label))
-										{
-												*Bounds += PixelPos;
-										}
-										else
-										{
-												FBox2D NewBox(PixelPos, PixelPos);
-												NewBox.bIsValid = true;
-												LabelBounds.Add(Label, NewBox);
-										}
-								}
+							*Bounds += PixelPos;
 						}
+						else
+						{
+							FBox2D NewBox(PixelPos, PixelPos);
+							NewBox.bIsValid = true;
+							LabelBounds.Add(Label, NewBox);
+						}
+					}
 				}
+			}
 		}
 
 		{
-				TRACE_CPUPROFILER_EVENT_SCOPE(NormalizeBounds);
-				for(const auto& Pair : LabelBounds)
-				{
-						FLabeledBounds Bounds;
-						Bounds.Label = Pair.Key;
-						Bounds.Bounds.Min.X = Pair.Value.Min.X / ImageSize.X;
-						Bounds.Bounds.Min.Y = Pair.Value.Min.Y / ImageSize.Y;
-						Bounds.Bounds.Max.X = Pair.Value.Max.X / ImageSize.X;
-						Bounds.Bounds.Max.Y = Pair.Value.Max.Y / ImageSize.Y;
-						LabeledBounds.Add(Bounds);
-				}
+			TRACE_CPUPROFILER_EVENT_SCOPE(NormalizeBounds);
+			for (const auto& Pair : LabelBounds)
+			{
+				FLabeledBounds Bounds;
+				Bounds.Label = Pair.Key;
+				Bounds.Bounds.Min.X = Pair.Value.Min.X / ImageSize.X;
+				Bounds.Bounds.Min.Y = Pair.Value.Min.Y / ImageSize.Y;
+				Bounds.Bounds.Max.X = Pair.Value.Max.X / ImageSize.X;
+				Bounds.Bounds.Max.Y = Pair.Value.Max.Y / ImageSize.Y;
+				LabeledBounds.Add(Bounds);
+			}
 		}
 
 		UE_LOG(LogTemp, Warning, TEXT("Computed %d bounding boxes"), LabeledBounds.Num());
 	}
-	
+
 	TArray<PixelType> Image;
 
 	TArray<FLabeledBounds> LabeledBounds;
@@ -173,7 +167,7 @@ struct TTextureRead : TTextureReadBase<PixelType>
 class FRWScopeLock_OnlyGTWrite : FRWScopeLock
 {
 public:
-	UE_NODISCARD_CTOR explicit FRWScopeLock_OnlyGTWrite(FRWLock& InLockObject,FRWScopeLockType InLockType)
+	UE_NODISCARD_CTOR explicit FRWScopeLock_OnlyGTWrite(FRWLock& InLockObject, FRWScopeLockType InLockType)
 		: FRWScopeLock(InLockObject, InLockType)
 	{
 		if (InLockType != SLT_ReadOnly)
@@ -196,7 +190,7 @@ struct FTextureReadQueue
 		FRWScopeLock_OnlyGTWrite ReadLock(Lock, SLT_ReadOnly);
 		return PendingTextureReads.Num();
 	}
-	
+
 	void Enqueue(FTextureRead* TextureRead)
 	{
 		FRWScopeLock_OnlyGTWrite WriteLock(Lock, SLT_Write);
@@ -270,7 +264,7 @@ struct FTextureReadQueue
 
 private:
 	TArray<TUniquePtr<FTextureRead>> PendingTextureReads;
-	mutable FRWLock Lock;
+	mutable FRWLock					 Lock;
 };
 
 UCLASS(Abstract)
@@ -286,25 +280,25 @@ public:
 	virtual void UpdateSceneCaptureContents(FSceneInterface* Scene) override;
 
 	// Begin ITempoSensorInterface
-	virtual FString GetOwnerName() const override;
-	virtual FString GetSensorName() const override;
-	virtual float GetRate() const override { return RateHz; }
+	virtual FString										 GetOwnerName() const override;
+	virtual FString										 GetSensorName() const override;
+	virtual float										 GetRate() const override { return RateHz; }
 	virtual const TArray<TEnumAsByte<EMeasurementType>>& GetMeasurementTypes() const override { return MeasurementTypes; }
-	virtual bool IsAwaitingRender() override;
-	virtual void OnRenderCompleted() override;
-	virtual void BlockUntilMeasurementsReady() const override;
-	virtual TOptional<TFuture<void>> SendMeasurements() override;
+	virtual bool										 IsAwaitingRender() override;
+	virtual void										 OnRenderCompleted() override;
+	virtual void										 BlockUntilMeasurementsReady() const override;
+	virtual TOptional<TFuture<void>>					 SendMeasurements() override;
 	// End ITempoSensorInterface
 
 protected:
 	// Derived components must override this to return whether they have pending requests.
-	virtual bool HasPendingRequests() const PURE_VIRTUAL(UTempoSceneCaptureComponent2D::HasPendingRequests, return false; );
+	virtual bool HasPendingRequests() const PURE_VIRTUAL(UTempoSceneCaptureComponent2D::HasPendingRequests, return false;);
 
 	// Derived components must override this to create new texture reads, based on their current settings, to be enqueued.
-	virtual FTextureRead* MakeTextureRead() const PURE_VIRTUAL(UTempoSceneCaptureComponent2D::MakeTextureRead, return nullptr; );
+	virtual FTextureRead* MakeTextureRead() const PURE_VIRTUAL(UTempoSceneCaptureComponent2D::MakeTextureRead, return nullptr;);
 
 	// Derived components must override this to decode a completed texture read and use it to respond to pending requests.
-	virtual TFuture<void> DecodeAndRespond(TUniquePtr<FTextureRead> TextureRead) PURE_VIRTUAL(UTempoSceneCaptureComponent2D::DecodeAndRespond, return TFuture<void>(); );
+	virtual TFuture<void> DecodeAndRespond(TUniquePtr<FTextureRead> TextureRead) PURE_VIRTUAL(UTempoSceneCaptureComponent2D::DecodeAndRespond, return TFuture<void>(););
 
 	// Derived components may override this to limit the size of the texture queue.
 	virtual int32 GetMaxTextureQueueSize() const { return -1; }

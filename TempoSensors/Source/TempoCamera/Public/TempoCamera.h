@@ -15,12 +15,12 @@
 // 4-byte pixel format where first 3 bytes are color, 4th byte is label.
 struct FCameraPixelNoDepth
 {
-	static constexpr bool bSupportsDepth = false; 
-	
+	static constexpr bool bSupportsDepth = false;
+
 	uint8 B() const { return U1; }
 	uint8 G() const { return U2; }
 	uint8 R() const { return U3; }
-	
+
 	uint8 Label() const { return U4; }
 
 private:
@@ -35,13 +35,13 @@ private:
 struct FCameraPixelWithDepth
 {
 	static constexpr bool bSupportsDepth = true;
-	
+
 	uint8 B() const { return U3; }
 	uint8 G() const { return U2; }
 	uint8 R() const { return U1; }
-	
+
 	uint8 Label() const { return U4; }
-	
+
 	float Depth(float MinDepth, float MaxDepth, float MaxDiscretizedDepth) const
 	{
 		// We discretize inverse depth to give more consistent precision vs depth.
@@ -52,34 +52,34 @@ struct FCameraPixelWithDepth
 	}
 
 private:
-	uint8 U1 = 0;
-	uint8 U2 = 0;
-	uint8 U3 = 0;
-	uint8 U4 = 0;
+	uint8  U1 = 0;
+	uint8  U2 = 0;
+	uint8  U3 = 0;
+	uint8  U4 = 0;
 	uint32 U5 = 0;
 };
 
 struct FColorImageRequest
 {
-	TempoCamera::ColorImageRequest Request;
+	TempoCamera::ColorImageRequest			   Request;
 	TResponseDelegate<TempoCamera::ColorImage> ResponseContinuation;
 };
 
 struct FLabelImageRequest
 {
-	TempoCamera::LabelImageRequest Request;
+	TempoCamera::LabelImageRequest			   Request;
 	TResponseDelegate<TempoCamera::LabelImage> ResponseContinuation;
 };
 
 struct FDepthImageRequest
 {
-	TempoCamera::DepthImageRequest Request;
+	TempoCamera::DepthImageRequest			   Request;
 	TResponseDelegate<TempoCamera::DepthImage> ResponseContinuation;
 };
 
 struct FBoundingBoxesRequest
 {
-	TempoCamera::BoundingBoxesRequest Request;
+	TempoCamera::BoundingBoxesRequest			  Request;
 	TResponseDelegate<TempoCamera::BoundingBoxes> ResponseContinuation;
 };
 
@@ -87,12 +87,12 @@ template <>
 struct TTextureRead<FCameraPixelWithDepth> : TTextureReadBase<FCameraPixelWithDepth>
 {
 	TTextureRead(const FIntPoint& ImageSizeIn, int32 SequenceIdIn, double CaptureTimeIn, const FString& OwnerNameIn, const FString& SensorNameIn, bool bBoundingBoxEnabledIn, float MinDepthIn, float MaxDepthIn)
-    : TTextureReadBase(ImageSizeIn, SequenceIdIn, CaptureTimeIn, OwnerNameIn, SensorNameIn, bBoundingBoxEnabledIn)
-    , MinDepth(MinDepthIn)
-    , MaxDepth(MaxDepthIn)
-{
-}
-	
+		: TTextureReadBase(ImageSizeIn, SequenceIdIn, CaptureTimeIn, OwnerNameIn, SensorNameIn, bBoundingBoxEnabledIn)
+		, MinDepth(MinDepthIn)
+		, MaxDepth(MaxDepthIn)
+	{
+	}
+
 	virtual FName GetType() const override { return TEXT("WithDepth"); }
 
 	void RespondToRequests(const TArray<FColorImageRequest>& Requests, float TransmissionTime) const;
@@ -108,7 +108,7 @@ template <>
 struct TTextureRead<FCameraPixelNoDepth> : TTextureReadBase<FCameraPixelNoDepth>
 {
 	using TTextureReadBase::TTextureReadBase;
-	
+
 	virtual FName GetType() const override { return TEXT("NoDepth"); }
 
 	void RespondToRequests(const TArray<FColorImageRequest>& Requests, float TransmissionTime) const;
@@ -125,7 +125,7 @@ struct TEMPOCAMERA_API FTempoCameraIntrinsics
 	const float Cy;
 };
 
-UCLASS(Blueprintable, BlueprintType, ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
+UCLASS(Blueprintable, BlueprintType, ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class TEMPOCAMERA_API UTempoCamera : public UTempoSceneCaptureComponent2D
 {
 	GENERATED_BODY()
@@ -163,25 +163,25 @@ protected:
 	void SetBoundingBoxEnabled(bool bBoundingBoxEnabledIn);
 
 	// Whether this camera can measure depth. Disabled when not requested to optimize performance.
-	UPROPERTY(VisibleAnywhere, Category="Depth")
+	UPROPERTY(VisibleAnywhere, Category = "Depth")
 	bool bDepthEnabled = false;
 
 	// The minimum depth this camera can measure (if depth is enabled). Will be set to the global near clip plane.
-	UPROPERTY(VisibleAnywhere, Category="Depth")
+	UPROPERTY(VisibleAnywhere, Category = "Depth")
 	float MinDepth = 10.0; // 10cm
-	
+
 	// The maximum depth this camera can measure (if depth is enabled). Will be set to UTempoSensorsSettings::MaxCameraDepth.
-	UPROPERTY(VisibleAnywhere, Category="Depth")
+	UPROPERTY(VisibleAnywhere, Category = "Depth")
 	float MaxDepth = 100000.0; // 1km
 
-	UPROPERTY(VisibleAnywhere, Category="BoundingBox")
+	UPROPERTY(VisibleAnywhere, Category = "BoundingBox")
 	bool bBoundingBoxEnabled = false;
 
 	UPROPERTY(VisibleAnywhere)
-	UMaterialInstanceDynamic* PostProcessMaterialInstance= nullptr;
+	UMaterialInstanceDynamic* PostProcessMaterialInstance = nullptr;
 
-	TArray<FColorImageRequest> PendingColorImageRequests;
-	TArray<FLabelImageRequest> PendingLabelImageRequests;
-	TArray<FDepthImageRequest> PendingDepthImageRequests;
+	TArray<FColorImageRequest>	  PendingColorImageRequests;
+	TArray<FLabelImageRequest>	  PendingLabelImageRequests;
+	TArray<FDepthImageRequest>	  PendingDepthImageRequests;
 	TArray<FBoundingBoxesRequest> PendingBoundingBoxRequests;
 };
