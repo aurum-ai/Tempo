@@ -34,6 +34,9 @@ void UTempoActorLabeler::OnWorldBeginPlay(UWorld& InWorld)
 	// Label all newly spawned actors.
 	GetWorld()->AddOnActorSpawnedHandler(FOnActorSpawned::FDelegate::CreateUObject(this, &UTempoActorLabeler::LabelActor));
 
+	// Register for actor destruction to cleanup instance IDs
+	ActorDestroyedHandle = GetWorld()->AddOnActorDestroyedHandler(FOnActorDestroyed::FDelegate::CreateUObject(this, &UTempoActorLabeler::OnActorDestroyed));
+
 	// Handles labeling any component whose render state is marked dirty (for example their mesh changed).
 	UActorComponent::MarkRenderStateDirtyEvent.AddWeakLambda(this, [this](UActorComponent& Component)
 	{
@@ -51,6 +54,18 @@ void UTempoActorLabeler::OnWorldBeginPlay(UWorld& InWorld)
 	{
 		LabelComponent(Component);
 	});
+}
+
+void UTempoActorLabeler::Deinitialize()
+{
+	if (UWorld* World = GetWorld())
+	{
+		// Remove the actor destroyed handler
+		// Note: In UE 5.4 the API has a typo ("Destroyeded"). This was fixed in UE 5.5 to be "RemoveOnActorDestroyedHandler"
+		World->RemoveOnActorDestroyededHandler(ActorDestroyedHandle);
+	}
+
+	Super::Deinitialize();
 }
 
 bool UTempoActorLabeler::ShouldCreateSubsystem(UObject* Outer) const
@@ -281,4 +296,18 @@ uint32 UTempoActorLabeler::GetOrCreateInstanceId(const AActor* Actor)
 	uint32 NewId = NextInstanceId++;
 	ActorInstanceIds.Add(Actor, NewId);
 	return NewId;
+}
+
+void UTempoActorLabeler::OnActorDestroyed(AActor* DestroyedActor)
+{
+	// Remove from LabeledActors (though this happens automatically due to weak pointer)
+	LabeledActors.Remove(DestroyedActor);
+
+	// If this actor had an instance ID, remove and log it
+	if (uint32* InstanceId = ActorInstanceIds.Find(DestroyedActor))
+	{
+		UE_LOG(LogTempoLabels, Display, TEXT("Cleaned up instance ID %u for destroyed actor %s"), 
+			*InstanceId, *DestroyedActor->GetName());
+		ActorInstanceIds.Remove(DestroyedActor);
+	}
 }

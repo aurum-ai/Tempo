@@ -25,7 +25,13 @@ public:
 
 	virtual FName GetActorClassification(const AActor* Actor) const override;
 
+	virtual void Deinitialize() override;
+
 protected:
+	// Handle cleanup when an actor is destroyed
+	UFUNCTION()
+	void OnActorDestroyed(AActor* DestroyedActor);
+
 	void BuildLabelMaps();
 	
 	void LabelAllActors();
@@ -71,6 +77,9 @@ protected:
 	// Next available instance ID
 	UPROPERTY()
 	uint32 NextInstanceId = 1;
+
+	// Handle for the actor destroyed delegate
+	FDelegateHandle ActorDestroyedHandle;
 
 	// Get or create instance ID for an actor
 	uint32 GetOrCreateInstanceId(const AActor* Actor);
