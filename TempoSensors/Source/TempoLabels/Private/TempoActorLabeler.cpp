@@ -241,6 +241,10 @@ void UTempoActorLabeler::LabelComponent(UActorComponent* Component)
 
 void UTempoActorLabeler::LabelComponent(UPrimitiveComponent* Component, int32 ActorLabelId)
 {
+	// Get the owning actor's instance ID
+	// TODO Do we want unique instance IDs for each component?
+	uint32 InstanceId = GetOrCreateInstanceId(Component->GetOwner());
+
 	if (UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(Component))
 	{
 		if (const UStaticMesh* StaticMesh = StaticMeshComponent->GetStaticMesh())
@@ -262,7 +266,13 @@ void UTempoActorLabeler::LabelComponent(UPrimitiveComponent* Component, int32 Ac
 					// Label using the explicit static mesh label rather than the owning Actor's label.
 					StaticMeshComponent->SetRenderCustomDepth(true);
 					StaticMeshComponent->SetCustomDepthStencilValue(*StaticMeshLabelId);
+
+					// Set the instance ID using custom primitive data
+					StaticMeshComponent->SetCustomPrimitiveDataFloat(0, InstanceId);
+
 					LabeledComponents.Add(StaticMeshComponent, *StaticMeshLabelId);
+					ComponentInstanceIds.Add(StaticMeshComponent, InstanceId);
+
 					return;
 				}
 				UE_LOG(LogTempoLabels, Error, TEXT("Label %s did not have an associated ID"), *StaticMeshLabel->ToString());
@@ -273,7 +283,12 @@ void UTempoActorLabeler::LabelComponent(UPrimitiveComponent* Component, int32 Ac
 	// No mesh label found. Label with its owning Actor's label.
 	Component->SetRenderCustomDepth(true);
 	Component->SetCustomDepthStencilValue(ActorLabelId);
+    
+	// Set the instance ID using custom primitive data
+	Component->SetCustomPrimitiveDataFloat(0, InstanceId);
+	
 	LabeledComponents.Add(Component, ActorLabelId);
+	ComponentInstanceIds.Add(Component, InstanceId);
 }
 
 FName UTempoActorLabeler::GetActorClassification(const AActor* Actor) const
@@ -309,5 +324,12 @@ void UTempoActorLabeler::OnActorDestroyed(AActor* DestroyedActor)
 		UE_LOG(LogTempoLabels, Display, TEXT("Cleaned up instance ID %u for destroyed actor %s"), 
 			*InstanceId, *DestroyedActor->GetName());
 		ActorInstanceIds.Remove(DestroyedActor);
+	}
+
+	// Clean up any component instance IDs
+	TInlineComponentArray<UPrimitiveComponent*> PrimitiveComponents(DestroyedActor);
+	for (UPrimitiveComponent* Component : PrimitiveComponents)
+	{
+		ComponentInstanceIds.Remove(Component);
 	}
 }

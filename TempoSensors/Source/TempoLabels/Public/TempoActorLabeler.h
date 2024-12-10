@@ -74,9 +74,13 @@ protected:
 	UPROPERTY()
 	TMap<const AActor*, uint32> ActorInstanceIds;
 
+	// Store instance IDs for components
+	UPROPERTY()
+	TMap<const UPrimitiveComponent*, uint32> ComponentInstanceIds;
+
 	// Next available instance ID
 	UPROPERTY()
-	uint32 NextInstanceId = 1;
+	uint32 NextInstanceId = 2; // 0 is reserved for NoLabel
 
 	// Handle for the actor destroyed delegate
 	FDelegateHandle ActorDestroyedHandle;

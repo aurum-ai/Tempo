@@ -88,14 +88,51 @@ void RespondToBoundingBoxRequests(const TTextureRead<PixelType>* TextureRead, co
 	TempoCamera::BoundingBoxes BoundingBoxes;
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(TempoCameraDecodeBoundingBoxes);
-		for (const FLabeledBounds& Bounds : TextureRead->LabeledBounds)
+		
+		TMap<uint8, FBox2D> LabelBounds;
+		TSet<uint32> UniqueInstanceIds;  // Track unique instance IDs
+
+		for (int32 Y = 0; Y < TextureRead->ImageSize.Y; Y++)
+		{
+			for (int32 X = 0; X < TextureRead->ImageSize.X; X++)
+			{
+				uint8 Label = TextureRead->Image[Y * TextureRead->ImageSize.X + X].Label();
+				if (Label <= 0)
+				{
+					continue;
+				}
+				uint32 InstanceId = TextureRead->Image[Y * TextureRead->ImageSize.X + X].InstanceId();
+				
+				// Log each unique instance ID only once
+				if (!UniqueInstanceIds.Contains(InstanceId))
+				{
+					UE_LOG(LogTempoCamera, Display, TEXT("Found instance ID: %u with label: %u"), InstanceId, Label);
+					UniqueInstanceIds.Add(InstanceId);
+				}
+
+				FVector2D PixelPos(X, Y);
+				if (auto* Bounds = LabelBounds.Find(Label))
+				{
+					*Bounds += PixelPos;
+				}
+				else
+				{
+					FBox2D NewBox(PixelPos, PixelPos);
+					NewBox.bIsValid = true;
+					LabelBounds.Add(Label, NewBox);
+				}
+			}
+		}
+
+		// we can re-activate this once the data packing is working
+		for (const auto& Pair : LabelBounds)
 		{
 			auto* BoundingBox = BoundingBoxes.add_boxes();
-			BoundingBox->set_label(Bounds.Label);
-			BoundingBox->set_x_min(Bounds.Bounds.Min.X);
-			BoundingBox->set_y_min(Bounds.Bounds.Min.Y);
-			BoundingBox->set_x_max(Bounds.Bounds.Max.X);
-			BoundingBox->set_y_max(Bounds.Bounds.Max.Y);
+			BoundingBox->set_label(Pair.Key);
+			BoundingBox->set_x_min(Pair.Value.Min.X / TextureRead->ImageSize.X);
+			BoundingBox->set_y_min(Pair.Value.Min.Y / TextureRead->ImageSize.Y);
+			BoundingBox->set_x_max(Pair.Value.Max.X / TextureRead->ImageSize.X);
+			BoundingBox->set_y_max(Pair.Value.Max.Y / TextureRead->ImageSize.Y);
 		}
 		BoundingBoxes.mutable_header()->set_sequence_id(TextureRead->SequenceId);
 		BoundingBoxes.mutable_header()->set_capture_time(TextureRead->CaptureTime);
@@ -155,12 +192,17 @@ void TTextureRead<FCameraPixelWithDepth>::RespondToRequests(const TArray<FDepthI
 	}
 }
 
-void TTextureRead<FCameraPixelNoDepth>::RespondToRequests(const TArray<FBoundingBoxesRequest>& Requests, float TransmissionTime) const
+void TTextureRead<FCameraPixelWithInstances>::RespondToRequests(const TArray<FColorImageRequest>& Requests, float TransmissionTime) const
 {
-	RespondToBoundingBoxRequests(this, Requests, TransmissionTime);
+	RespondToColorRequests(this, Requests, TransmissionTime);
 }
 
-void TTextureRead<FCameraPixelWithDepth>::RespondToRequests(const TArray<FBoundingBoxesRequest>& Requests, float TransmissionTime) const
+void TTextureRead<FCameraPixelWithInstances>::RespondToRequests(const TArray<FLabelImageRequest>& Requests, float TransmissionTime) const
+{
+	RespondToLabelRequests(this, Requests, TransmissionTime);
+}
+
+void TTextureRead<FCameraPixelWithInstances>::RespondToRequests(const TArray<FBoundingBoxesRequest>& Requests, float TransmissionTime) const
 {
 	RespondToBoundingBoxRequests(this, Requests, TransmissionTime);
 }
@@ -196,6 +238,11 @@ void UTempoCamera::UpdateSceneCaptureContents(FSceneInterface* Scene)
 {
 	if (!bDepthEnabled && !PendingDepthImageRequests.IsEmpty())
 	{
+		if (!PendingBoundingBoxRequests.IsEmpty())
+		{
+			UE_LOG(LogTempoCamera, Error, TEXT("Bounding boxes are enabled, cannot enable depth"));
+			return;
+		}
 		// If a client is requesting depth, start rendering it.
 		SetDepthEnabled(true);
 	}
@@ -208,11 +255,17 @@ void UTempoCamera::UpdateSceneCaptureContents(FSceneInterface* Scene)
 
 	if (!bBoundingBoxEnabled && !PendingBoundingBoxRequests.IsEmpty())
 	{
+		if (!PendingDepthImageRequests.IsEmpty())
+		{
+			UE_LOG(LogTempoCamera, Error, TEXT("Depth is enabled, cannot enable bounding boxes"));
+			return;
+		}
 		SetBoundingBoxEnabled(true);
 	}
 
 	if (bBoundingBoxEnabled && PendingBoundingBoxRequests.IsEmpty())
 	{
+		// If no client is requesting bounding boxes, stop rendering them.
 		SetBoundingBoxEnabled(false);
 	}
 
@@ -253,30 +306,50 @@ FTextureRead* UTempoCamera::MakeTextureRead() const
 {
 	check(GetWorld());
 
-	return bDepthEnabled ? static_cast<FTextureRead*>(new TTextureRead<FCameraPixelWithDepth>(
-							   SizeXY,
-							   SequenceId,
-							   GetWorld()->GetTimeSeconds(),
-							   GetOwnerName(),
-							   GetSensorName(),
-							   bBoundingBoxEnabled,
-							   MinDepth,
-							   MaxDepth))
-						 : static_cast<FTextureRead*>(new TTextureRead<FCameraPixelNoDepth>(
-							   SizeXY,
-							   SequenceId,
-							   GetWorld()->GetTimeSeconds(),
-							   GetOwnerName(),
-							   GetSensorName(),
-							   bBoundingBoxEnabled));
+	if (bBoundingBoxEnabled && bDepthEnabled)
+	{
+		// What to do here?
+		UE_LOG(LogTempoCamera, Error, TEXT("Depth and bounding boxes are both enabled, which is not supported"));
+		return nullptr;
+	}
+
+	if (bBoundingBoxEnabled)
+	{
+		return static_cast<FTextureRead*>(new TTextureRead<FCameraPixelWithInstances>(
+			SizeXY,
+			SequenceId,
+			GetWorld()->GetTimeSeconds(),
+			GetOwnerName(),
+			GetSensorName()));
+	}
+	else if (bDepthEnabled)
+	{
+		return static_cast<FTextureRead*>(new TTextureRead<FCameraPixelWithDepth>(
+			SizeXY,
+			SequenceId,
+			GetWorld()->GetTimeSeconds(),
+			GetOwnerName(),
+			GetSensorName(),
+			MinDepth,
+			MaxDepth));
+	}
+	else
+	{
+		return static_cast<FTextureRead*>(new TTextureRead<FCameraPixelNoDepth>(
+			SizeXY,
+			SequenceId,
+			GetWorld()->GetTimeSeconds(),
+			GetOwnerName(),
+			GetSensorName()));
+	}
 }
 
 TFuture<void> UTempoCamera::DecodeAndRespond(TUniquePtr<FTextureRead> TextureRead)
 {
 	const double TransmissionTime = GetWorld()->GetTimeSeconds();
 
-	const bool bSupportsDepth = TextureRead->GetType() == TEXT("WithDepth");
-
+	const bool	  bSupportsDepth = TextureRead->GetType() == TEXT("WithDepth");
+	const bool	  bSupportsBoundingBoxes = TextureRead->GetType() == TEXT("WithInstances");
 	TFuture<void> Future = Async(EAsyncExecution::TaskGraph, [TextureRead = MoveTemp(TextureRead), ColorImageRequests = PendingColorImageRequests, LabelImageRequests = PendingLabelImageRequests, DepthImageRequests = PendingDepthImageRequests, BoundingBoxRequests = PendingBoundingBoxRequests, TransmissionTimeCpy = TransmissionTime] {
 		TRACE_CPUPROFILER_EVENT_SCOPE(TempoCameraDecodeAndRespond);
 
@@ -285,13 +358,17 @@ TFuture<void> UTempoCamera::DecodeAndRespond(TUniquePtr<FTextureRead> TextureRea
 			static_cast<TTextureRead<FCameraPixelWithDepth>*>(TextureRead.Get())->RespondToRequests(ColorImageRequests, TransmissionTimeCpy);
 			static_cast<TTextureRead<FCameraPixelWithDepth>*>(TextureRead.Get())->RespondToRequests(LabelImageRequests, TransmissionTimeCpy);
 			static_cast<TTextureRead<FCameraPixelWithDepth>*>(TextureRead.Get())->RespondToRequests(DepthImageRequests, TransmissionTimeCpy);
-			static_cast<TTextureRead<FCameraPixelWithDepth>*>(TextureRead.Get())->RespondToRequests(BoundingBoxRequests, TransmissionTimeCpy);
 		}
 		else if (TextureRead->GetType() == TEXT("NoDepth"))
 		{
 			static_cast<TTextureRead<FCameraPixelNoDepth>*>(TextureRead.Get())->RespondToRequests(ColorImageRequests, TransmissionTimeCpy);
 			static_cast<TTextureRead<FCameraPixelNoDepth>*>(TextureRead.Get())->RespondToRequests(LabelImageRequests, TransmissionTimeCpy);
-			static_cast<TTextureRead<FCameraPixelNoDepth>*>(TextureRead.Get())->RespondToRequests(BoundingBoxRequests, TransmissionTimeCpy);
+		}
+		else if (TextureRead->GetType() == TEXT("WithInstances"))
+		{
+			static_cast<TTextureRead<FCameraPixelWithInstances>*>(TextureRead.Get())->RespondToRequests(ColorImageRequests, TransmissionTimeCpy);
+			static_cast<TTextureRead<FCameraPixelWithInstances>*>(TextureRead.Get())->RespondToRequests(LabelImageRequests, TransmissionTimeCpy);
+			static_cast<TTextureRead<FCameraPixelWithInstances>*>(TextureRead.Get())->RespondToRequests(BoundingBoxRequests, TransmissionTimeCpy);
 		}
 	});
 
@@ -301,6 +378,10 @@ TFuture<void> UTempoCamera::DecodeAndRespond(TUniquePtr<FTextureRead> TextureRea
 	if (bSupportsDepth)
 	{
 		PendingDepthImageRequests.Empty();
+	}
+	if (bSupportsBoundingBoxes)
+	{
+		PendingBoundingBoxRequests.Empty();
 	}
 
 	return Future;
@@ -420,4 +501,157 @@ void UTempoCamera::SetBoundingBoxEnabled(bool bBoundingBoxEnabledIn)
 		*GetOwnerName(), *GetSensorName(), bBoundingBoxEnabledIn);
 
 	bBoundingBoxEnabled = bBoundingBoxEnabledIn;
+	ApplyBoundingBoxEnabled();
 }
+
+// void UTempoCamera::ApplyBoundingBoxEnabled()
+// {
+// 	// Implement setting the correct render target format and pixel format and material
+// 	const UTempoSensorsSettings* TempoSensorsSettings = GetDefault<UTempoSensorsSettings>();
+// 	check(TempoSensorsSettings);
+
+// 	if (!bBoundingBoxEnabled)
+// 	{
+// 		UE_LOG(LogTempoCamera, Error, TEXT("PostProcessMaterialWithInstances is not set in TempoSensors settings"));
+// 		return;
+// 	}
+
+// 	if (bDepthEnabled)
+// 	{
+// 		UE_LOG(LogTempoCamera, Error, TEXT("Depth is already enabled, cannot enable bounding boxes"));
+// 		return;
+// 	}
+
+// 	const TObjectPtr<UMaterialInterface> PostProcessMaterialWithInstances = GetDefault<UTempoSensorsSettings>()->GetCameraPostProcessMaterialWithInstances();
+// 	if (!PostProcessMaterialWithInstances)
+// 	{
+// 		UE_LOG(LogTempoCamera, Error, TEXT("PostProcessMaterialWithInstances is not set in TempoSensors settings"));
+// 		return;
+// 	}
+
+// 	// // Create and set up the instance ID render target
+// 	// if (!InstanceIdRenderTarget)
+// 	// {
+// 	// 	InstanceIdRenderTarget = NewObject<UTextureRenderTarget2D>(this);
+// 	// 	check(InstanceIdRenderTarget);
+
+// 	// 	UE_LOG(LogTempoCamera, Display, TEXT("Creating 16-bit instance ID render target for owner: %s camera: %s bounding box enabled: %d size: %d x %d"),
+// 	// 		*GetOwnerName(), *GetSensorName(), bBoundingBoxEnabled, SizeXY.X, SizeXY.Y);
+
+// 	// 	// Use compatible format for 16-bit instance IDs
+// 	// 	InstanceIdRenderTarget->RenderTargetFormat = ETextureRenderTargetFormat::RTF_RGBA16f;
+// 	// 	InstanceIdRenderTarget->InitCustomFormat(SizeXY.X, SizeXY.Y, PF_A16B16G16R16, false);
+// 	// 	InstanceIdRenderTarget->ClearColor = FLinearColor::Black;
+// 	// 	InstanceIdRenderTarget->bAutoGenerateMips = false;
+// 	// 	InstanceIdRenderTarget->bGPUSharedFlag = true;
+// 	// 	InstanceIdRenderTarget->UpdateResource();
+
+// 	// 	InstanceIdRenderTarget->AddToRoot();
+// 	// }
+
+// 	// Set up the post process material
+// 	PostProcessMaterialInstance = UMaterialInstanceDynamic::Create(PostProcessMaterialWithInstances.Get(), this);
+// 	check(PostProcessMaterialInstance);
+
+// 	// Initialize the render target with the right format to handle 16-bit opacity
+// 	RenderTargetFormat = ETextureRenderTargetFormat::RTF_RGBA16f;
+// 	PixelFormatOverride = EPixelFormat::PF_A16B16G16R16;
+
+// 	// Pass the instance ID render target to the material
+// 	// UE_LOG(LogTempoCamera, Display, TEXT("Calling SetTextureParameterValue for instance ID render target to %s for owner: %s camera: %s bounding box enabled: %d"),
+// 	// 	*InstanceIdRenderTarget->GetName(), *GetOwnerName(), *GetSensorName(), bBoundingBoxEnabled);
+// 	// PostProcessMaterialInstance->SetTextureParameterValue(TEXT("InstanceIdTarget"), InstanceIdRenderTarget);
+
+// 	PostProcessSettings.WeightedBlendables.Array.Empty();
+// 	PostProcessSettings.WeightedBlendables.Array.Init(FWeightedBlendable(1.0, PostProcessMaterialInstance), 1);
+// 	PostProcessMaterialInstance->EnsureIsComplete();
+
+// 	UE_LOG(LogTempoCamera, Display, TEXT("Applied bounding box instances material for owner: %s camera: %s bounding box enabled: %d"),
+// 		*GetOwnerName(), *GetSensorName(), bBoundingBoxEnabled);
+// 	InitRenderTarget();
+// }
+
+void UTempoCamera::ApplyBoundingBoxEnabled()
+{
+    const UTempoSensorsSettings* TempoSensorsSettings = GetDefault<UTempoSensorsSettings>();
+    check(TempoSensorsSettings);
+
+    if (bBoundingBoxEnabled)
+    {
+        // Set formats first, just like in ApplyDepthEnabled
+        RenderTargetFormat = ETextureRenderTargetFormat::RTF_RGBA16f;
+        PixelFormatOverride = EPixelFormat::PF_A16B16G16R16;
+
+        const TObjectPtr<UMaterialInterface> PostProcessMaterialWithInstances = GetDefault<UTempoSensorsSettings>()->GetCameraPostProcessMaterialWithInstances();
+        if (!PostProcessMaterialWithInstances)
+        {
+            UE_LOG(LogTempoCamera, Error, TEXT("PostProcessMaterialWithInstances is not set in TempoSensors settings"));
+            return;
+        }
+
+        PostProcessMaterialInstance = UMaterialInstanceDynamic::Create(PostProcessMaterialWithInstances.Get(), this);
+        check(PostProcessMaterialInstance);
+    }
+    else
+    {
+        // Match the no-depth case from ApplyDepthEnabled
+        if (const TObjectPtr<UMaterialInterface> PostProcessMaterialNoDepth = GetDefault<UTempoSensorsSettings>()->GetCameraPostProcessMaterialNoDepth())
+        {
+            PostProcessMaterialInstance = UMaterialInstanceDynamic::Create(PostProcessMaterialNoDepth.Get(), this);
+        }
+        else
+        {
+            UE_LOG(LogTempoCamera, Error, TEXT("PostProcessMaterialNoDepth is not set in TempoSensors settings"));
+        }
+
+        RenderTargetFormat = ETextureRenderTargetFormat::RTF_RGBA8;
+        PixelFormatOverride = EPixelFormat::PF_Unknown;
+    }
+
+    // Apply the same semantic label handling as in ApplyDepthEnabled
+    UDataTable* SemanticLabelTable = GetDefault<UTempoSensorsSettings>()->GetSemanticLabelTable();
+    FName OverridableLabelRowName = TempoSensorsSettings->GetOverridableLabelRowName();
+    FName OverridingLabelRowName = TempoSensorsSettings->GetOverridingLabelRowName();
+    TOptional<int32> OverridableLabel;
+    TOptional<int32> OverridingLabel;
+    if (!OverridableLabelRowName.IsNone())
+    {
+        SemanticLabelTable->ForeachRow<FSemanticLabel>(TEXT(""),
+            [&OverridableLabelRowName,
+                &OverridingLabelRowName,
+                &OverridableLabel,
+                &OverridingLabel](const FName& Key, const FSemanticLabel& Value) {
+                if (Key == OverridableLabelRowName)
+                {
+                    OverridableLabel = Value.Label;
+                }
+                if (Key == OverridingLabelRowName)
+                {
+                    OverridingLabel = Value.Label;
+                }
+            });
+    }
+
+    if (PostProcessMaterialInstance)
+    {
+        if (OverridableLabel.IsSet() && OverridingLabel.IsSet())
+        {
+            PostProcessMaterialInstance->SetScalarParameterValue(TEXT("OverridableLabel"), OverridableLabel.GetValue());
+            PostProcessMaterialInstance->SetScalarParameterValue(TEXT("OverridingLabel"), OverridingLabel.GetValue());
+        }
+        else
+        {
+            PostProcessMaterialInstance->SetScalarParameterValue(TEXT("OverridingLabel"), 0.0);
+        }
+
+        PostProcessSettings.WeightedBlendables.Array.Empty();
+        PostProcessSettings.WeightedBlendables.Array.Init(FWeightedBlendable(1.0, PostProcessMaterialInstance), 1);
+        PostProcessMaterialInstance->EnsureIsComplete();
+    }
+    else
+    {
+        UE_LOG(LogTempoCamera, Error, TEXT("PostProcessMaterialInstance is not set."));
+    }
+
+    InitRenderTarget();
+} 

@@ -16,6 +16,7 @@
 struct FCameraPixelNoDepth
 {
 	static constexpr bool bSupportsDepth = false;
+	static constexpr bool bSupportsBoundingBoxes = false;
 
 	uint8 B() const { return U1; }
 	uint8 G() const { return U2; }
@@ -35,6 +36,7 @@ private:
 struct FCameraPixelWithDepth
 {
 	static constexpr bool bSupportsDepth = true;
+	static constexpr bool bSupportsBoundingBoxes = false;
 
 	uint8 B() const { return U3; }
 	uint8 G() const { return U2; }
@@ -57,6 +59,26 @@ private:
 	uint8  U3 = 0;
 	uint8  U4 = 0;
 	uint32 U5 = 0;
+};
+
+// Like NoDepth but with 16 bit instance IDs.
+struct FCameraPixelWithInstances
+{
+	static constexpr bool bSupportsDepth = false;
+	static constexpr bool bSupportsBoundingBoxes = true;
+
+	uint8 B() const { return U3; }
+	uint8 G() const { return U2; }
+	uint8 R() const { return U1; }
+	uint8 Label() const { return U4; }
+	uint32 InstanceId() const { return U5; } // we were planning on 16 bit but for the stride I think it needs to be 32
+
+private:
+	uint8  U1 = 0;  // R
+	uint8  U2 = 0;  // G
+	uint8  U3 = 0;  // B
+	uint8  U4 = 0;  // Label
+	uint32 U5 = 0;  // Instance ID
 };
 
 struct FColorImageRequest
@@ -86,8 +108,8 @@ struct FBoundingBoxesRequest
 template <>
 struct TTextureRead<FCameraPixelWithDepth> : TTextureReadBase<FCameraPixelWithDepth>
 {
-	TTextureRead(const FIntPoint& ImageSizeIn, int32 SequenceIdIn, double CaptureTimeIn, const FString& OwnerNameIn, const FString& SensorNameIn, bool bBoundingBoxEnabledIn, float MinDepthIn, float MaxDepthIn)
-		: TTextureReadBase(ImageSizeIn, SequenceIdIn, CaptureTimeIn, OwnerNameIn, SensorNameIn, bBoundingBoxEnabledIn)
+	TTextureRead(const FIntPoint& ImageSizeIn, int32 SequenceIdIn, double CaptureTimeIn, const FString& OwnerNameIn, const FString& SensorNameIn, float MinDepthIn, float MaxDepthIn)
+		: TTextureReadBase(ImageSizeIn, SequenceIdIn, CaptureTimeIn, OwnerNameIn, SensorNameIn)
 		, MinDepth(MinDepthIn)
 		, MaxDepth(MaxDepthIn)
 	{
@@ -98,7 +120,6 @@ struct TTextureRead<FCameraPixelWithDepth> : TTextureReadBase<FCameraPixelWithDe
 	void RespondToRequests(const TArray<FColorImageRequest>& Requests, float TransmissionTime) const;
 	void RespondToRequests(const TArray<FLabelImageRequest>& Requests, float TransmissionTime) const;
 	void RespondToRequests(const TArray<FDepthImageRequest>& Requests, float TransmissionTime) const;
-	void RespondToRequests(const TArray<FBoundingBoxesRequest>& Requests, float TransmissionTime) const;
 
 	float MinDepth;
 	float MaxDepth;
@@ -111,6 +132,16 @@ struct TTextureRead<FCameraPixelNoDepth> : TTextureReadBase<FCameraPixelNoDepth>
 
 	virtual FName GetType() const override { return TEXT("NoDepth"); }
 
+	void RespondToRequests(const TArray<FColorImageRequest>& Requests, float TransmissionTime) const;
+	void RespondToRequests(const TArray<FLabelImageRequest>& Requests, float TransmissionTime) const;
+};
+
+template <>
+struct TTextureRead<FCameraPixelWithInstances> : TTextureReadBase<FCameraPixelWithInstances>
+{
+	using TTextureReadBase::TTextureReadBase;
+
+	virtual FName GetType() const override { return TEXT("WithInstances"); }
 	void RespondToRequests(const TArray<FColorImageRequest>& Requests, float TransmissionTime) const;
 	void RespondToRequests(const TArray<FLabelImageRequest>& Requests, float TransmissionTime) const;
 	void RespondToRequests(const TArray<FBoundingBoxesRequest>& Requests, float TransmissionTime) const;
@@ -162,6 +193,8 @@ protected:
 
 	void SetBoundingBoxEnabled(bool bBoundingBoxEnabledIn);
 
+	void ApplyBoundingBoxEnabled();
+
 	// Whether this camera can measure depth. Disabled when not requested to optimize performance.
 	UPROPERTY(VisibleAnywhere, Category = "Depth")
 	bool bDepthEnabled = false;
@@ -176,6 +209,10 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, Category = "BoundingBox")
 	bool bBoundingBoxEnabled = false;
+
+	// Render target for instance IDs
+	// UPROPERTY()
+	// UTextureRenderTarget2D* InstanceIdRenderTarget;
 
 	UPROPERTY(VisibleAnywhere)
 	UMaterialInstanceDynamic* PostProcessMaterialInstance = nullptr;
