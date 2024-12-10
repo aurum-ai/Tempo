@@ -88,9 +88,16 @@ void RespondToBoundingBoxRequests(const TTextureRead<PixelType>* TextureRead, co
 	TempoCamera::BoundingBoxes BoundingBoxes;
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(TempoCameraDecodeBoundingBoxes);
+
+		for (const auto& Pixel : TextureRead->Image) {
+			if (Pixel.InstanceId() > 0) {
+				UE_LOG(LogTempoCamera, Display, TEXT("RespondToBoundingBoxes() saw InstanceId: %u"), static_cast<uint32>(Pixel.InstanceId()));
+				break;
+			}
+		}
 		
 		TMap<uint8, FBox2D> LabelBounds;
-		TSet<uint32> UniqueInstanceIds;  // Track unique instance IDs
+		TMap<uint8, TSet<uint32>> LabelToInstanceIds;  // Map of Label -> Set of unique Instance IDs
 
 		for (int32 Y = 0; Y < TextureRead->ImageSize.Y; Y++)
 		{
@@ -101,14 +108,14 @@ void RespondToBoundingBoxRequests(const TTextureRead<PixelType>* TextureRead, co
 				{
 					continue;
 				}
-				uint32 InstanceId = TextureRead->Image[Y * TextureRead->ImageSize.X + X].InstanceId();
+				uint32 InstanceId = static_cast<uint32>(TextureRead->Image[Y * TextureRead->ImageSize.X + X].InstanceId());
 				
-				// Log each unique instance ID only once
-				if (!UniqueInstanceIds.Contains(InstanceId))
-				{
-					UE_LOG(LogTempoCamera, Display, TEXT("Found instance ID: %u with label: %u"), InstanceId, Label);
-					UniqueInstanceIds.Add(InstanceId);
-				}
+        // Add instance ID to the set for this label
+        if (!LabelToInstanceIds.Contains(Label))
+        {
+            LabelToInstanceIds.Add(Label, TSet<uint32>());
+        }
+        LabelToInstanceIds[Label].Add(InstanceId);
 
 				FVector2D PixelPos(X, Y);
 				if (auto* Bounds = LabelBounds.Find(Label))
@@ -122,6 +129,22 @@ void RespondToBoundingBoxRequests(const TTextureRead<PixelType>* TextureRead, co
 					LabelBounds.Add(Label, NewBox);
 				}
 			}
+		}
+
+		// Log the unique instance IDs for each label
+		for (const auto& Pair : LabelToInstanceIds)
+		{
+				FString InstanceIdsStr;
+				for (uint32 InstanceId : Pair.Value)
+				{
+						if (!InstanceIdsStr.IsEmpty())
+						{
+								InstanceIdsStr += TEXT(", ");
+						}
+						InstanceIdsStr += FString::Printf(TEXT("%lu"), InstanceId);
+				}
+				UE_LOG(LogTempoCamera, Display, TEXT("Label %lu has instance IDs: [%s]"), 
+						Pair.Key, *InstanceIdsStr);
 		}
 
 		// we can re-activate this once the data packing is working

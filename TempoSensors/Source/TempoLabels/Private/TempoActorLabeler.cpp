@@ -268,7 +268,19 @@ void UTempoActorLabeler::LabelComponent(UPrimitiveComponent* Component, int32 Ac
 					StaticMeshComponent->SetCustomDepthStencilValue(*StaticMeshLabelId);
 
 					// Set the instance ID using custom primitive data
-					StaticMeshComponent->SetCustomPrimitiveDataFloat(0, InstanceId);
+					if (*StaticMeshLabelId > 0)
+					{
+						UE_LOG(LogTempoLabels, Display, TEXT("Setting instance ID in LabelComponent() %u for component %s (label: %u)"), 
+							InstanceId, *Component->GetName(), *StaticMeshLabel->ToString());
+					}
+					StaticMeshComponent->SetCustomPrimitiveDataFloat(0, 4294967295.0f); //static_cast<float>(InstanceId));
+					const FCustomPrimitiveData& CustomData = StaticMeshComponent->GetCustomPrimitiveData();
+					if (CustomData.Data.IsValidIndex(0) && *StaticMeshLabelId > 0)
+					{
+						float VerifyValue = CustomData.Data[0];
+						UE_LOG(LogTempoLabels, Display, TEXT("Verified Custom Primitive Data value: %f"), VerifyValue);
+					}
+					StaticMeshComponent->MarkRenderStateDirty();
 
 					LabeledComponents.Add(StaticMeshComponent, *StaticMeshLabelId);
 					ComponentInstanceIds.Add(StaticMeshComponent, InstanceId);
@@ -285,8 +297,20 @@ void UTempoActorLabeler::LabelComponent(UPrimitiveComponent* Component, int32 Ac
 	Component->SetCustomDepthStencilValue(ActorLabelId);
     
 	// Set the instance ID using custom primitive data
-	Component->SetCustomPrimitiveDataFloat(0, InstanceId);
-	
+	if (ActorLabelId > 0)
+	{
+		UE_LOG(LogTempoLabels, Display, TEXT("Setting instance ID in LabelComponent() %u for component %s (label: %u)"), 
+			InstanceId, *Component->GetName(), ActorLabelId);
+	}
+	Component->SetCustomPrimitiveDataFloat(0, 4294967295.0f); //static_cast<float>(InstanceId));
+	const FCustomPrimitiveData& CustomData = Component->GetCustomPrimitiveData();
+	if (CustomData.Data.IsValidIndex(0) && ActorLabelId > 0)
+	{
+		float VerifyValue = CustomData.Data[0];
+		UE_LOG(LogTempoLabels, Display, TEXT("Verified Custom Primitive Data value: %f"), VerifyValue);
+	}
+	Component->MarkRenderStateDirty();
+
 	LabeledComponents.Add(Component, ActorLabelId);
 	ComponentInstanceIds.Add(Component, InstanceId);
 }

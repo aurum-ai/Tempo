@@ -71,7 +71,7 @@ struct FCameraPixelWithInstances
 	uint8 G() const { return U2; }
 	uint8 R() const { return U1; }
 	uint8 Label() const { return U4; }
-	uint32 InstanceId() const { return U5; } // we were planning on 16 bit but for the stride I think it needs to be 32
+	uint32 InstanceId() const { return U5; }
 
 private:
 	uint8  U1 = 0;  // R
