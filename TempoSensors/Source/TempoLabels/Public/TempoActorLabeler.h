@@ -63,4 +63,15 @@ protected:
 	// Cache to avoid re-labeling Components we've already labeled
 	UPROPERTY()
 	TMap<const UPrimitiveComponent*, int32> LabeledComponents;
+
+	// Store instance IDs for actors
+	UPROPERTY()
+	TMap<const AActor*, uint32> ActorInstanceIds;
+
+	// Next available instance ID
+	UPROPERTY()
+	uint32 NextInstanceId = 1;
+
+	// Get or create instance ID for an actor
+	uint32 GetOrCreateInstanceId(const AActor* Actor);
 };

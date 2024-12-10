@@ -177,8 +177,21 @@ void UTempoActorLabeler::LabelActor(AActor* Actor)
 		}
 	}
 	
+	// Only create instance ID if we have a valid label (not NoLabel)
+	if (ActorLabelId != NoLabelId)
+	{
+		const bool bHadInstanceId = ActorInstanceIds.Contains(Actor);
+		uint32 InstanceId = GetOrCreateInstanceId(Actor);
+		
+		// Only log if we actually created a new ID
+		if (!bHadInstanceId)
+		{
+			UE_LOG(LogTempoLabels, Display, TEXT("Created instance ID %u for labeled actor %s (label: %s)"), 
+				InstanceId, *Actor->GetName(), *AssignedLabel.ToString());
+		}
+	}
+	
 	LabelAllComponents(Actor, ActorLabelId);
-
 	LabeledActors.Add(Actor, ActorLabelId);
 }
 
@@ -256,4 +269,16 @@ FName UTempoActorLabeler::GetActorClassification(const AActor* Actor) const
 	}
 
 	return UDefaultActorClassifier::GetDefaultActorClassification(Actor);
+}
+
+uint32 UTempoActorLabeler::GetOrCreateInstanceId(const AActor* Actor)
+{
+	if (const uint32* ExistingId = ActorInstanceIds.Find(Actor))
+	{
+		return *ExistingId;
+	}
+
+	uint32 NewId = NextInstanceId++;
+	ActorInstanceIds.Add(Actor, NewId);
+	return NewId;
 }
