@@ -85,23 +85,54 @@ void RespondToLabelRequests(const TTextureRead<PixelType>* TextureRead, const TA
 template <typename PixelType>
 void RespondToBoundingBoxRequests(const TTextureRead<PixelType>* TextureRead, const TArray<FBoundingBoxesRequest>& Requests, float TransmissionTime)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(ComputeBoundingBoxes);
+
+	TMap<uint8, FBox2D> LabelBounds;
+
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(ScanPixelsForBounds);
+		for (int32 Y = 0; Y < TextureRead->ImageSize.Y; Y++)
+		{
+			for (int32 X = 0; X < TextureRead->ImageSize.X; X++)
+			{
+				uint8 Label = TextureRead->Image[Y * TextureRead->ImageSize.X + X].Label();
+				if (Label > 0) // Skip background
+				{
+					FVector2D PixelPos(X, Y);
+					if (auto* Bounds = LabelBounds.Find(Label))
+					{
+						*Bounds += PixelPos;
+					}
+					else
+					{
+						FBox2D NewBox(PixelPos, PixelPos);
+						NewBox.bIsValid = true;
+						LabelBounds.Add(Label, NewBox);
+					}
+				}
+			}
+		}
+	}
+
 	TempoCamera::BoundingBoxes BoundingBoxes;
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(TempoCameraDecodeBoundingBoxes);
-		for (const FLabeledBounds& Bounds : TextureRead->LabeledBounds)
+		TRACE_CPUPROFILER_EVENT_SCOPE(TempoCameraCreateBoundingBoxes);
+		for (const auto& Pair : LabelBounds)
 		{
 			auto* BoundingBox = BoundingBoxes.add_boxes();
-			BoundingBox->set_label(Bounds.Label);
-			BoundingBox->set_x_min(Bounds.Bounds.Min.X);
-			BoundingBox->set_y_min(Bounds.Bounds.Min.Y);
-			BoundingBox->set_x_max(Bounds.Bounds.Max.X);
-			BoundingBox->set_y_max(Bounds.Bounds.Max.Y);
+			BoundingBox->set_label(Pair.Key);
+			BoundingBox->set_x_min(Pair.Value.Min.X / TextureRead->ImageSize.X);
+			BoundingBox->set_y_min(Pair.Value.Min.Y / TextureRead->ImageSize.Y);
+			BoundingBox->set_x_max(Pair.Value.Max.X / TextureRead->ImageSize.X);
+			BoundingBox->set_y_max(Pair.Value.Max.Y / TextureRead->ImageSize.Y);
 		}
 		BoundingBoxes.mutable_header()->set_sequence_id(TextureRead->SequenceId);
 		BoundingBoxes.mutable_header()->set_capture_time(TextureRead->CaptureTime);
 		BoundingBoxes.mutable_header()->set_transmission_time(TransmissionTime);
 		BoundingBoxes.mutable_header()->set_sensor_name(TCHAR_TO_UTF8(*FString::Printf(TEXT("%s/%s"), *TextureRead->OwnerName, *TextureRead->SensorName)));
 	}
+
+	UE_LOG(LogTemp, Warning, TEXT("Computed %d bounding boxes"), BoundingBoxes.boxes_size());
 
 	TRACE_CPUPROFILER_EVENT_SCOPE(TempoCameraRespondBoundingBoxes);
 	for (auto RequestIt = Requests.CreateConstIterator(); RequestIt; ++RequestIt)

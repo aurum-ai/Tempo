@@ -10,14 +10,6 @@
 
 #include "TempoSceneCaptureComponent2D.generated.h"
 
-// A struct to represent a bounding box and a label
-// In the future we could add 3D, an actor reference, world coordinates, etc.
-struct FLabeledBounds
-{
-	uint8  Label;  // Label similar to semantic segmentation
-	FBox2D Bounds; // Normalized [0,1]
-};
-
 struct FTextureRead
 {
 	enum class State : uint8
@@ -40,8 +32,6 @@ struct FTextureRead
 	virtual FName GetType() const = 0;
 
 	virtual void Read(const FRenderTarget* RenderTarget, const FTextureRHIRef& TextureRHICopy) = 0;
-
-	virtual void ComputeBoundingBoxes() = 0;
 
 	void BlockUntilReadComplete() const
 	{
@@ -95,65 +85,10 @@ struct TTextureReadBase : FTextureRead
 		FMemory::Memcpy(Image.GetData(), OutBuffer, SurfaceWidth * SurfaceHeight * sizeof(PixelType));
 		RHICmdList.UnmapStagingSurface(TextureRHICopy);
 
-		if (bBoundingBoxEnabled)
-		{
-			ComputeBoundingBoxes();
-		}
-
 		State = State::EReadComplete;
 	}
 
-	virtual void ComputeBoundingBoxes() override
-	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(ComputeBoundingBoxes);
-
-		TMap<uint8, FBox2D> LabelBounds;
-
-		{
-			TRACE_CPUPROFILER_EVENT_SCOPE(ScanPixelsForBounds);
-			for (int32 Y = 0; Y < ImageSize.Y; Y++)
-			{
-				for (int32 X = 0; X < ImageSize.X; X++)
-				{
-					uint8 Label = Image[Y * ImageSize.X + X].Label();
-					if (Label > 0) // Skip background (usually label 0)
-					{
-						FVector2D PixelPos(X, Y);
-						if (auto* Bounds = LabelBounds.Find(Label))
-						{
-							*Bounds += PixelPos;
-						}
-						else
-						{
-							FBox2D NewBox(PixelPos, PixelPos);
-							NewBox.bIsValid = true;
-							LabelBounds.Add(Label, NewBox);
-						}
-					}
-				}
-			}
-		}
-
-		{
-			TRACE_CPUPROFILER_EVENT_SCOPE(NormalizeBounds);
-			for (const auto& Pair : LabelBounds)
-			{
-				FLabeledBounds Bounds;
-				Bounds.Label = Pair.Key;
-				Bounds.Bounds.Min.X = Pair.Value.Min.X / ImageSize.X;
-				Bounds.Bounds.Min.Y = Pair.Value.Min.Y / ImageSize.Y;
-				Bounds.Bounds.Max.X = Pair.Value.Max.X / ImageSize.X;
-				Bounds.Bounds.Max.Y = Pair.Value.Max.Y / ImageSize.Y;
-				LabeledBounds.Add(Bounds);
-			}
-		}
-
-		UE_LOG(LogTemp, Warning, TEXT("Computed %d bounding boxes"), LabeledBounds.Num());
-	}
-
 	TArray<PixelType> Image;
-
-	TArray<FLabeledBounds> LabeledBounds;
 };
 
 template <typename PixelType>
