@@ -210,10 +210,6 @@ protected:
 	UPROPERTY(VisibleAnywhere, Category = "BoundingBox")
 	bool bBoundingBoxEnabled = false;
 
-	// Render target for instance IDs
-	// UPROPERTY()
-	// UTextureRenderTarget2D* InstanceIdRenderTarget;
-
 	UPROPERTY(VisibleAnywhere)
 	UMaterialInstanceDynamic* PostProcessMaterialInstance = nullptr;
 
@@ -221,4 +217,12 @@ protected:
 	TArray<FLabelImageRequest>	  PendingLabelImageRequests;
 	TArray<FDepthImageRequest>	  PendingDepthImageRequests;
 	TArray<FBoundingBoxesRequest> PendingBoundingBoxRequests;
+
+	// Render target for capturing instance IDs
+	UPROPERTY(VisibleAnywhere, Category = "BoundingBox")
+	UTextureRenderTarget2D* InstanceIdRenderTarget = nullptr;
+
+	// Scene capture component for instance ID rendering
+	UPROPERTY(VisibleAnywhere, Category = "BoundingBox") 
+	USceneCaptureComponent2D* SceneCaptureComponent = nullptr;
 };

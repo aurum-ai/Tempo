@@ -89,15 +89,17 @@ void RespondToBoundingBoxRequests(const TTextureRead<PixelType>* TextureRead, co
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(TempoCameraDecodeBoundingBoxes);
 
-		for (const auto& Pixel : TextureRead->Image) {
-			if (Pixel.InstanceId() > 0) {
-				UE_LOG(LogTempoCamera, Display, TEXT("RespondToBoundingBoxes() saw InstanceId: %u"), static_cast<uint32>(Pixel.InstanceId()));
+		for (const auto& Pixel : TextureRead->Image)
+		{
+			if (Pixel.InstanceId() > 0)
+			{
+				UE_LOG(LogTempoCamera, Display, TEXT("RespondToBoundingBoxes() saw InstanceId: %u, breaking loop"), static_cast<uint32>(Pixel.InstanceId()));
 				break;
 			}
 		}
-		
-		TMap<uint8, FBox2D> LabelBounds;
-		TMap<uint8, TSet<uint32>> LabelToInstanceIds;  // Map of Label -> Set of unique Instance IDs
+
+		TMap<uint8, FBox2D>		  LabelBounds;
+		TMap<uint8, TSet<uint32>> LabelToInstanceIds; // Map of Label -> Set of unique Instance IDs
 
 		for (int32 Y = 0; Y < TextureRead->ImageSize.Y; Y++)
 		{
@@ -109,13 +111,13 @@ void RespondToBoundingBoxRequests(const TTextureRead<PixelType>* TextureRead, co
 					continue;
 				}
 				uint32 InstanceId = static_cast<uint32>(TextureRead->Image[Y * TextureRead->ImageSize.X + X].InstanceId());
-				
-        // Add instance ID to the set for this label
-        if (!LabelToInstanceIds.Contains(Label))
-        {
-            LabelToInstanceIds.Add(Label, TSet<uint32>());
-        }
-        LabelToInstanceIds[Label].Add(InstanceId);
+
+				// Add instance ID to the set for this label
+				if (!LabelToInstanceIds.Contains(Label))
+				{
+					LabelToInstanceIds.Add(Label, TSet<uint32>());
+				}
+				LabelToInstanceIds[Label].Add(InstanceId);
 
 				FVector2D PixelPos(X, Y);
 				if (auto* Bounds = LabelBounds.Find(Label))
@@ -134,17 +136,17 @@ void RespondToBoundingBoxRequests(const TTextureRead<PixelType>* TextureRead, co
 		// Log the unique instance IDs for each label
 		for (const auto& Pair : LabelToInstanceIds)
 		{
-				FString InstanceIdsStr;
-				for (uint32 InstanceId : Pair.Value)
+			FString InstanceIdsStr;
+			for (uint32 InstanceId : Pair.Value)
+			{
+				if (!InstanceIdsStr.IsEmpty())
 				{
-						if (!InstanceIdsStr.IsEmpty())
-						{
-								InstanceIdsStr += TEXT(", ");
-						}
-						InstanceIdsStr += FString::Printf(TEXT("%lu"), InstanceId);
+					InstanceIdsStr += TEXT(", ");
 				}
-				UE_LOG(LogTempoCamera, Display, TEXT("Label %lu has instance IDs: [%s]"), 
-						Pair.Key, *InstanceIdsStr);
+				InstanceIdsStr += FString::Printf(TEXT("%lu"), InstanceId);
+			}
+			UE_LOG(LogTempoCamera, Display, TEXT("Label %lu has instance IDs: [%s]"),
+				Pair.Key, *InstanceIdsStr);
 		}
 
 		// we can re-activate this once the data packing is working
@@ -527,154 +529,147 @@ void UTempoCamera::SetBoundingBoxEnabled(bool bBoundingBoxEnabledIn)
 	ApplyBoundingBoxEnabled();
 }
 
-// void UTempoCamera::ApplyBoundingBoxEnabled()
-// {
-// 	// Implement setting the correct render target format and pixel format and material
-// 	const UTempoSensorsSettings* TempoSensorsSettings = GetDefault<UTempoSensorsSettings>();
-// 	check(TempoSensorsSettings);
-
-// 	if (!bBoundingBoxEnabled)
-// 	{
-// 		UE_LOG(LogTempoCamera, Error, TEXT("PostProcessMaterialWithInstances is not set in TempoSensors settings"));
-// 		return;
-// 	}
-
-// 	if (bDepthEnabled)
-// 	{
-// 		UE_LOG(LogTempoCamera, Error, TEXT("Depth is already enabled, cannot enable bounding boxes"));
-// 		return;
-// 	}
-
-// 	const TObjectPtr<UMaterialInterface> PostProcessMaterialWithInstances = GetDefault<UTempoSensorsSettings>()->GetCameraPostProcessMaterialWithInstances();
-// 	if (!PostProcessMaterialWithInstances)
-// 	{
-// 		UE_LOG(LogTempoCamera, Error, TEXT("PostProcessMaterialWithInstances is not set in TempoSensors settings"));
-// 		return;
-// 	}
-
-// 	// // Create and set up the instance ID render target
-// 	// if (!InstanceIdRenderTarget)
-// 	// {
-// 	// 	InstanceIdRenderTarget = NewObject<UTextureRenderTarget2D>(this);
-// 	// 	check(InstanceIdRenderTarget);
-
-// 	// 	UE_LOG(LogTempoCamera, Display, TEXT("Creating 16-bit instance ID render target for owner: %s camera: %s bounding box enabled: %d size: %d x %d"),
-// 	// 		*GetOwnerName(), *GetSensorName(), bBoundingBoxEnabled, SizeXY.X, SizeXY.Y);
-
-// 	// 	// Use compatible format for 16-bit instance IDs
-// 	// 	InstanceIdRenderTarget->RenderTargetFormat = ETextureRenderTargetFormat::RTF_RGBA16f;
-// 	// 	InstanceIdRenderTarget->InitCustomFormat(SizeXY.X, SizeXY.Y, PF_A16B16G16R16, false);
-// 	// 	InstanceIdRenderTarget->ClearColor = FLinearColor::Black;
-// 	// 	InstanceIdRenderTarget->bAutoGenerateMips = false;
-// 	// 	InstanceIdRenderTarget->bGPUSharedFlag = true;
-// 	// 	InstanceIdRenderTarget->UpdateResource();
-
-// 	// 	InstanceIdRenderTarget->AddToRoot();
-// 	// }
-
-// 	// Set up the post process material
-// 	PostProcessMaterialInstance = UMaterialInstanceDynamic::Create(PostProcessMaterialWithInstances.Get(), this);
-// 	check(PostProcessMaterialInstance);
-
-// 	// Initialize the render target with the right format to handle 16-bit opacity
-// 	RenderTargetFormat = ETextureRenderTargetFormat::RTF_RGBA16f;
-// 	PixelFormatOverride = EPixelFormat::PF_A16B16G16R16;
-
-// 	// Pass the instance ID render target to the material
-// 	// UE_LOG(LogTempoCamera, Display, TEXT("Calling SetTextureParameterValue for instance ID render target to %s for owner: %s camera: %s bounding box enabled: %d"),
-// 	// 	*InstanceIdRenderTarget->GetName(), *GetOwnerName(), *GetSensorName(), bBoundingBoxEnabled);
-// 	// PostProcessMaterialInstance->SetTextureParameterValue(TEXT("InstanceIdTarget"), InstanceIdRenderTarget);
-
-// 	PostProcessSettings.WeightedBlendables.Array.Empty();
-// 	PostProcessSettings.WeightedBlendables.Array.Init(FWeightedBlendable(1.0, PostProcessMaterialInstance), 1);
-// 	PostProcessMaterialInstance->EnsureIsComplete();
-
-// 	UE_LOG(LogTempoCamera, Display, TEXT("Applied bounding box instances material for owner: %s camera: %s bounding box enabled: %d"),
-// 		*GetOwnerName(), *GetSensorName(), bBoundingBoxEnabled);
-// 	InitRenderTarget();
-// }
-
 void UTempoCamera::ApplyBoundingBoxEnabled()
 {
-    const UTempoSensorsSettings* TempoSensorsSettings = GetDefault<UTempoSensorsSettings>();
-    check(TempoSensorsSettings);
+	const UTempoSensorsSettings* TempoSensorsSettings = GetDefault<UTempoSensorsSettings>();
+	check(TempoSensorsSettings);
 
-    if (bBoundingBoxEnabled)
-    {
-        // Set formats first, just like in ApplyDepthEnabled
-        RenderTargetFormat = ETextureRenderTargetFormat::RTF_RGBA16f;
-        PixelFormatOverride = EPixelFormat::PF_A16B16G16R16;
+	if (bBoundingBoxEnabled)
+	{
+		// Set up the render target post process material
+		RenderTargetFormat = ETextureRenderTargetFormat::RTF_RGBA16f;
+		PixelFormatOverride = EPixelFormat::PF_A16B16G16R16;
 
-        const TObjectPtr<UMaterialInterface> PostProcessMaterialWithInstances = GetDefault<UTempoSensorsSettings>()->GetCameraPostProcessMaterialWithInstances();
-        if (!PostProcessMaterialWithInstances)
-        {
-            UE_LOG(LogTempoCamera, Error, TEXT("PostProcessMaterialWithInstances is not set in TempoSensors settings"));
-            return;
-        }
+		// Set up the SceneCaptureComponent2D for instance IDs
+		AActor*			 OwningActor = GetOwner(); // Assuming UTempoCamera is part of an actor
+		USceneComponent* RootComponent = nullptr;
+		if (OwningActor)
+		{
+			RootComponent = OwningActor->GetRootComponent();
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("Owning actor or root component is missing, disabling bounding box mode"));
+			bBoundingBoxEnabled = false;
+			return;
+		}
 
-        PostProcessMaterialInstance = UMaterialInstanceDynamic::Create(PostProcessMaterialWithInstances.Get(), this);
-        check(PostProcessMaterialInstance);
-    }
-    else
-    {
-        // Match the no-depth case from ApplyDepthEnabled
-        if (const TObjectPtr<UMaterialInterface> PostProcessMaterialNoDepth = GetDefault<UTempoSensorsSettings>()->GetCameraPostProcessMaterialNoDepth())
-        {
-            PostProcessMaterialInstance = UMaterialInstanceDynamic::Create(PostProcessMaterialNoDepth.Get(), this);
-        }
-        else
-        {
-            UE_LOG(LogTempoCamera, Error, TEXT("PostProcessMaterialNoDepth is not set in TempoSensors settings"));
-        }
+		UE_LOG(LogTemp, Display, TEXT("Owning actor: %s, root component: %s"), *OwningActor->GetName(), *RootComponent->GetName());
 
-        RenderTargetFormat = ETextureRenderTargetFormat::RTF_RGBA8;
-        PixelFormatOverride = EPixelFormat::PF_Unknown;
-    }
+		// Step 1: Create a Custom Render Target for Instance IDs
+		if (!InstanceIdRenderTarget)
+		{
+			InstanceIdRenderTarget = NewObject<UTextureRenderTarget2D>(this);
+			InstanceIdRenderTarget->InitCustomFormat(SizeXY.X, SizeXY.Y, PF_FloatRGBA, false);
+			InstanceIdRenderTarget->ClearColor = FLinearColor::Black; // Default value
+			InstanceIdRenderTarget->AddressX = TextureAddress::TA_Clamp;
+			InstanceIdRenderTarget->AddressY = TextureAddress::TA_Clamp;
 
-    // Apply the same semantic label handling as in ApplyDepthEnabled
-    UDataTable* SemanticLabelTable = GetDefault<UTempoSensorsSettings>()->GetSemanticLabelTable();
-    FName OverridableLabelRowName = TempoSensorsSettings->GetOverridableLabelRowName();
-    FName OverridingLabelRowName = TempoSensorsSettings->GetOverridingLabelRowName();
-    TOptional<int32> OverridableLabel;
-    TOptional<int32> OverridingLabel;
-    if (!OverridableLabelRowName.IsNone())
-    {
-        SemanticLabelTable->ForeachRow<FSemanticLabel>(TEXT(""),
-            [&OverridableLabelRowName,
-                &OverridingLabelRowName,
-                &OverridableLabel,
-                &OverridingLabel](const FName& Key, const FSemanticLabel& Value) {
-                if (Key == OverridableLabelRowName)
-                {
-                    OverridableLabel = Value.Label;
-                }
-                if (Key == OverridingLabelRowName)
-                {
-                    OverridingLabel = Value.Label;
-                }
-            });
-    }
+			if (!InstanceIdRenderTarget->IsValidLowLevel())
+			{
+				UE_LOG(LogTemp, Error, TEXT("Failed to initialize InstanceIdRenderTarget."));
+				return;
+			}
+		}
 
-    if (PostProcessMaterialInstance)
-    {
-        if (OverridableLabel.IsSet() && OverridingLabel.IsSet())
-        {
-            PostProcessMaterialInstance->SetScalarParameterValue(TEXT("OverridableLabel"), OverridableLabel.GetValue());
-            PostProcessMaterialInstance->SetScalarParameterValue(TEXT("OverridingLabel"), OverridingLabel.GetValue());
-        }
-        else
-        {
-            PostProcessMaterialInstance->SetScalarParameterValue(TEXT("OverridingLabel"), 0.0);
-        }
+		// Step 2: Create or Configure SceneCaptureComponent2D
+		if (!SceneCaptureComponent)
+		{
+			SceneCaptureComponent = NewObject<USceneCaptureComponent2D>(this);
+			SceneCaptureComponent->SetupAttachment(RootComponent);
+		}
+		SceneCaptureComponent->CaptureSource = ESceneCaptureSource::SCS_FinalColorLDR;
+		SceneCaptureComponent->TextureTarget = InstanceIdRenderTarget;
 
-        PostProcessSettings.WeightedBlendables.Array.Empty();
-        PostProcessSettings.WeightedBlendables.Array.Init(FWeightedBlendable(1.0, PostProcessMaterialInstance), 1);
-        PostProcessMaterialInstance->EnsureIsComplete();
-    }
-    else
-    {
-        UE_LOG(LogTempoCamera, Error, TEXT("PostProcessMaterialInstance is not set."));
-    }
+		if (!SceneCaptureComponent->IsValidLowLevel())
+		{
+			UE_LOG(LogTemp, Error, TEXT("SceneCaptureComponent is invalid."));
+			return;
+		}
 
-    InitRenderTarget();
-} 
+		// Step 3: Use Post-Process Material for Instance IDs
+		const TObjectPtr<UMaterialInterface> PostProcessMaterialWithInstances = TempoSensorsSettings->GetCameraPostProcessMaterialWithInstances();
+		if (PostProcessMaterialWithInstances)
+		{
+			PostProcessMaterialInstance = UMaterialInstanceDynamic::Create(PostProcessMaterialWithInstances.Get(), this);
+
+			// Set the render target as a texture parameter
+			if (PostProcessMaterialInstance)
+			{
+				UE_LOG(LogTemp, Display, TEXT("Setting InstanceIdRenderTarget on PostProcessMaterialInstance"));
+				PostProcessMaterialInstance->SetTextureParameterValue(TEXT("InstanceIdRenderTarget"), InstanceIdRenderTarget);
+			}
+			else
+			{
+				UE_LOG(LogTemp, Error, TEXT("PostProcessMaterialInstance is null"));
+			}
+
+			SceneCaptureComponent->AddOrUpdateBlendable(PostProcessMaterialInstance);
+		}
+		else
+		{
+			UE_LOG(LogTempoCamera, Error, TEXT("PostProcessMaterialWithInstances is not set in TempoSensors settings"));
+		}
+
+		SceneCaptureComponent->RegisterComponent();
+	}
+	else
+	{
+		if (const TObjectPtr<UMaterialInterface> PostProcessMaterialNoDepth = GetDefault<UTempoSensorsSettings>()->GetCameraPostProcessMaterialNoDepth())
+		{
+			PostProcessMaterialInstance = UMaterialInstanceDynamic::Create(PostProcessMaterialNoDepth.Get(), this);
+		}
+		else
+		{
+			UE_LOG(LogTempoCamera, Error, TEXT("PostProcessMaterialWithDepth is not set in TempoSensors settings"));
+		}
+
+		RenderTargetFormat = ETextureRenderTargetFormat::RTF_RGBA8; // Corresponds to PF_B8G8R8A8
+		PixelFormatOverride = EPixelFormat::PF_Unknown;
+	}
+
+	UDataTable*		 SemanticLabelTable = GetDefault<UTempoSensorsSettings>()->GetSemanticLabelTable();
+	FName			 OverridableLabelRowName = TempoSensorsSettings->GetOverridableLabelRowName();
+	FName			 OverridingLabelRowName = TempoSensorsSettings->GetOverridingLabelRowName();
+	TOptional<int32> OverridableLabel;
+	TOptional<int32> OverridingLabel;
+	if (!OverridableLabelRowName.IsNone())
+	{
+		SemanticLabelTable->ForeachRow<FSemanticLabel>(TEXT(""),
+			[&OverridableLabelRowName,
+				&OverridingLabelRowName,
+				&OverridableLabel,
+				&OverridingLabel](const FName& Key, const FSemanticLabel& Value) {
+				if (Key == OverridableLabelRowName)
+				{
+					OverridableLabel = Value.Label;
+				}
+				if (Key == OverridingLabelRowName)
+				{
+					OverridingLabel = Value.Label;
+				}
+			});
+	}
+
+	if (PostProcessMaterialInstance)
+	{
+		if (OverridableLabel.IsSet() && OverridingLabel.IsSet())
+		{
+			PostProcessMaterialInstance->SetScalarParameterValue(TEXT("OverridableLabel"), OverridableLabel.GetValue());
+			PostProcessMaterialInstance->SetScalarParameterValue(TEXT("OverridingLabel"), OverridingLabel.GetValue());
+		}
+		else
+		{
+			PostProcessMaterialInstance->SetScalarParameterValue(TEXT("OverridingLabel"), 0.0);
+		}
+		PostProcessSettings.WeightedBlendables.Array.Empty();
+		PostProcessSettings.WeightedBlendables.Array.Init(FWeightedBlendable(1.0, PostProcessMaterialInstance), 1);
+		PostProcessMaterialInstance->EnsureIsComplete();
+	}
+	else
+	{
+		UE_LOG(LogTempoCamera, Error, TEXT("PostProcessMaterialInstance is not set."));
+	}
+
+	InitRenderTarget();
+}

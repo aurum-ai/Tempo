@@ -241,8 +241,17 @@ void UTempoActorLabeler::LabelComponent(UActorComponent* Component)
 
 void UTempoActorLabeler::LabelComponent(UPrimitiveComponent* Component, int32 ActorLabelId)
 {
+	// First check if we've already labeled this component
+	if (const int32* PreviousLabel = LabeledComponents.Find(Component))
+	{
+		if (Component->bRenderCustomDepth && Component->CustomDepthStencilValue == *PreviousLabel)
+		{
+			// This component already has the right label.
+			return;
+		}
+	}
+
 	// Get the owning actor's instance ID
-	// TODO Do we want unique instance IDs for each component?
 	uint32 InstanceId = GetOrCreateInstanceId(Component->GetOwner());
 
 	if (UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(Component))
@@ -254,37 +263,18 @@ void UTempoActorLabeler::LabelComponent(UPrimitiveComponent* Component, int32 Ac
 			{
 				if (const int32* StaticMeshLabelId = LabelIds.Find(*StaticMeshLabel))
 				{
-					if (const int32* PreviousLabel = LabeledComponents.Find(Component))
-					{
-						if (StaticMeshComponent->bRenderCustomDepth && StaticMeshComponent->CustomDepthStencilValue == *PreviousLabel)
-						{
-							// This component already has the right label.
-							return;
-						}
-					}
-
 					// Label using the explicit static mesh label rather than the owning Actor's label.
 					StaticMeshComponent->SetRenderCustomDepth(true);
 					StaticMeshComponent->SetCustomDepthStencilValue(*StaticMeshLabelId);
 
-					// Set the instance ID using custom primitive data
-					if (*StaticMeshLabelId > 0)
+					// Set instance ID only if we haven't already
+					if (!ComponentInstanceIds.Contains(StaticMeshComponent))
 					{
-						UE_LOG(LogTempoLabels, Display, TEXT("Setting instance ID in LabelComponent() %u for component %s (label: %u)"), 
-							InstanceId, *Component->GetName(), *StaticMeshLabel->ToString());
+						SetComponentInstanceId(StaticMeshComponent, InstanceId, *StaticMeshLabelId);
 					}
-					StaticMeshComponent->SetCustomPrimitiveDataFloat(0, 4294967295.0f); //static_cast<float>(InstanceId));
-					const FCustomPrimitiveData& CustomData = StaticMeshComponent->GetCustomPrimitiveData();
-					if (CustomData.Data.IsValidIndex(0) && *StaticMeshLabelId > 0)
-					{
-						float VerifyValue = CustomData.Data[0];
-						UE_LOG(LogTempoLabels, Display, TEXT("Verified Custom Primitive Data value: %f"), VerifyValue);
-					}
-					StaticMeshComponent->MarkRenderStateDirty();
 
 					LabeledComponents.Add(StaticMeshComponent, *StaticMeshLabelId);
 					ComponentInstanceIds.Add(StaticMeshComponent, InstanceId);
-
 					return;
 				}
 				UE_LOG(LogTempoLabels, Error, TEXT("Label %s did not have an associated ID"), *StaticMeshLabel->ToString());
@@ -296,23 +286,37 @@ void UTempoActorLabeler::LabelComponent(UPrimitiveComponent* Component, int32 Ac
 	Component->SetRenderCustomDepth(true);
 	Component->SetCustomDepthStencilValue(ActorLabelId);
     
-	// Set the instance ID using custom primitive data
-	if (ActorLabelId > 0)
+	// Set instance ID only if we haven't already
+	if (!ComponentInstanceIds.Contains(Component))
 	{
-		UE_LOG(LogTempoLabels, Display, TEXT("Setting instance ID in LabelComponent() %u for component %s (label: %u)"), 
-			InstanceId, *Component->GetName(), ActorLabelId);
+		SetComponentInstanceId(Component, InstanceId, ActorLabelId);
 	}
-	Component->SetCustomPrimitiveDataFloat(0, 4294967295.0f); //static_cast<float>(InstanceId));
-	const FCustomPrimitiveData& CustomData = Component->GetCustomPrimitiveData();
-	if (CustomData.Data.IsValidIndex(0) && ActorLabelId > 0)
-	{
-		float VerifyValue = CustomData.Data[0];
-		UE_LOG(LogTempoLabels, Display, TEXT("Verified Custom Primitive Data value: %f"), VerifyValue);
-	}
-	Component->MarkRenderStateDirty();
 
 	LabeledComponents.Add(Component, ActorLabelId);
 	ComponentInstanceIds.Add(Component, InstanceId);
+}
+
+void UTempoActorLabeler::SetComponentInstanceId(UPrimitiveComponent* Component, uint32 InstanceId, int32 LabelId)
+{
+	  InstanceId = 3;
+    if (LabelId > 0)
+    {
+        UE_LOG(LogTempoLabels, Display, TEXT("Setting instance ID %u for component %s (label: %u)"), 
+               InstanceId, *Component->GetName(), LabelId);
+    }
+
+    if (UMeshComponent* MeshComponent = Cast<UMeshComponent>(Component))
+    {
+        // Assign a material with instance ID encoding
+        UMaterialInterface* Material = MeshComponent->GetMaterial(0);
+        if (Material && !Material->IsA<UMaterialInstanceDynamic>())
+        {
+            UMaterialInstanceDynamic* DynMaterial = UMaterialInstanceDynamic::Create(Material, this);
+
+						DynMaterial->SetScalarParameterValue(TEXT("InstanceID"), static_cast<float>(InstanceId));
+            MeshComponent->SetMaterial(0, DynMaterial);
+        }
+    }
 }
 
 FName UTempoActorLabeler::GetActorClassification(const AActor* Actor) const

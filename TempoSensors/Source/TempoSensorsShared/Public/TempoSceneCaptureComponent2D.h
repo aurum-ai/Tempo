@@ -10,14 +10,6 @@
 
 #include "TempoSceneCaptureComponent2D.generated.h"
 
-// A struct to represent a bounding box and a label
-// In the future we could add 3D, an actor reference, world coordinates, etc.
-struct FLabeledBounds
-{
-	uint8  Label;  // Label similar to semantic segmentation
-	FBox2D Bounds; // Normalized [0,1]
-};
-
 struct FTextureRead
 {
 	enum class State : uint8

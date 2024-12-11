@@ -87,4 +87,7 @@ protected:
 
 	// Get or create instance ID for an actor
 	uint32 GetOrCreateInstanceId(const AActor* Actor);
+
+private:
+	void SetComponentInstanceId(UPrimitiveComponent* Component, uint32 InstanceId, int32 LabelId);
 };
