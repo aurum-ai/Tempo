@@ -45,6 +45,7 @@ public class TempoSensors : TempoModuleRules
 				// Tempo
 				"TempoSensorsShared",
 				"TempoCamera",
+				"TempoLabels",
 			}
 			);
 		

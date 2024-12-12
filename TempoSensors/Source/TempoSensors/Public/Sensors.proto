@@ -25,8 +25,23 @@ message AvailableSensorsResponse {
   repeated SensorDescriptor available_sensors = 1;
 }
 
+message InstanceLabel {
+  uint32 instance = 1;
+  uint32 label = 2;
+}
+
+message InstanceToLabelMappingRequest {
+
+}
+
+message InstanceToLabelMappingResponse {
+  repeated InstanceLabel instance_to_label = 1;
+}
+
 service SensorService {
   rpc GetAvailableSensors(AvailableSensorsRequest) returns (AvailableSensorsResponse);
+
+  rpc GetInstanceToLabelMapping(InstanceToLabelMappingRequest) returns (InstanceToLabelMappingResponse);
 
   rpc StreamColorImages(TempoCamera.ColorImageRequest) returns (stream TempoCamera.ColorImage);
 
