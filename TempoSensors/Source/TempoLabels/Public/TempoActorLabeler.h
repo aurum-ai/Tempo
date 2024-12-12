@@ -25,6 +25,8 @@ public:
 
 	virtual FName GetActorClassification(const AActor* Actor) const override;
 
+	const TMap<uint8, int32>& GetInstanceToLabelMap() const { return InstanceToLabel; }
+
 protected:
 	void BuildLabelMaps();
 	
@@ -63,4 +65,17 @@ protected:
 	// Cache to avoid re-labeling Components we've already labeled
 	UPROPERTY()
 	TMap<const UPrimitiveComponent*, int32> LabeledComponents;
+
+	// Maps unique instance IDs to their associated labels
+	UPROPERTY()
+	TMap<uint8, int32> InstanceToLabel;
+
+	// Maps parent actors to their assigned unique instance IDs
+	UPROPERTY()
+	TMap<const AActor*, uint8> ParentActorInstanceIds;
+
+	uint8 nextUniqueInstanceId = 1;
+
+	// Critical section for thread-safe access to instance ID maps
+	FCriticalSection CriticalSection;
 };
