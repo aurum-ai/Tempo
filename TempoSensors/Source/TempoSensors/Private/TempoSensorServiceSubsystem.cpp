@@ -9,12 +9,16 @@
 #include "TempoCamera/Camera.pb.h"
 
 #include "TempoCoreSettings.h"
+#include "TempoActorLabeler.h"
 
 using SensorService = TempoSensors::SensorService;
 using SensorAsyncService = TempoSensors::SensorService::AsyncService;
 using SensorDescriptor = TempoSensors::SensorDescriptor;
 using AvailableSensorsRequest = TempoSensors::AvailableSensorsRequest;
 using AvailableSensorsResponse = TempoSensors::AvailableSensorsResponse;
+using InstanceToLabelMappingRequest = TempoSensors::InstanceToLabelMappingRequest;
+using InstanceToLabelMappingResponse = TempoSensors::InstanceToLabelMappingResponse;
+
 using ColorImageRequest = TempoCamera::ColorImageRequest;
 using DepthImageRequest = TempoCamera::DepthImageRequest;
 using LabelImageRequest = TempoCamera::LabelImageRequest;
@@ -26,6 +30,7 @@ void UTempoSensorServiceSubsystem::RegisterScriptingServices(FTempoScriptingServ
 {
 	ScriptingServer.RegisterService<SensorService>(
 		SimpleRequestHandler(&SensorAsyncService::RequestGetAvailableSensors, &UTempoSensorServiceSubsystem::GetAvailableSensors),
+		SimpleRequestHandler(&SensorAsyncService::RequestGetInstanceToLabelMapping, &UTempoSensorServiceSubsystem::GetInstanceToLabelMapping),
 		StreamingRequestHandler(&SensorAsyncService::RequestStreamColorImages, &UTempoSensorServiceSubsystem::StreamColorImages),
 		StreamingRequestHandler(&SensorAsyncService::RequestStreamDepthImages, &UTempoSensorServiceSubsystem::StreamDepthImages),
 		StreamingRequestHandler(&SensorAsyncService::RequestStreamLabelImages, &UTempoSensorServiceSubsystem::StreamLabelImages)
@@ -167,6 +172,29 @@ void UTempoSensorServiceSubsystem::GetAvailableSensors(const TempoSensors::Avail
 			AvailableSensor->add_measurement_types(ToProtoMeasurementType(MeasurementType));
 		}
 	});
+
+	ResponseContinuation.ExecuteIfBound(Response, grpc::Status_OK);
+}
+
+void UTempoSensorServiceSubsystem::GetInstanceToLabelMapping(const TempoSensors::InstanceToLabelMappingRequest& Request, const TResponseDelegate<TempoSensors::InstanceToLabelMappingResponse>& ResponseContinuation) const
+{
+	InstanceToLabelMappingResponse Response;
+
+	UTempoActorLabeler* Labeler = GetWorld()->GetSubsystem<UTempoActorLabeler>();
+	if (!Labeler)
+	{
+		ResponseContinuation.ExecuteIfBound(Response, grpc::Status(grpc::StatusCode::INTERNAL, "No labeler found"));
+		return;
+	}
+
+	TMap<uint8, int32> InstanceToLabelMap = Labeler->GetInstanceToLabelMap();
+
+	for (const auto& Mapping : InstanceToLabelMap)
+	{
+		auto* NewMapping = Response.add_instance_to_label();
+		NewMapping->set_instance(Mapping.Key);
+		NewMapping->set_label(Mapping.Value);
+	}
 
 	ResponseContinuation.ExecuteIfBound(Response, grpc::Status_OK);
 }

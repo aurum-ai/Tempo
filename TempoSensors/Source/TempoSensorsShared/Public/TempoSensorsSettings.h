@@ -24,6 +24,7 @@ public:
 	FName GetOverridableLabelRowName() const { return OverridableLabelRowName; }
 	FName GetOverridingLabelRowName() const { return OverridingLabelRowName; }
 	int32 GetMaxCameraRenderBufferSize() const { return MaxCameraRenderBufferSize; }
+	bool GetUseUniqueInstanceIds() const { return bUseUniqueInstanceIds; }
 
 private:
 	// The data table from which we will load the mapping from Actor classes to semantic labels.
@@ -56,4 +57,8 @@ private:
 	// Anywhere a non-zero subsurface color is found on an object of type OverridableLabelRowName, this label will be used instead.
 	UPROPERTY(EditAnywhere, Config, Category="Camera")
 	FName OverridingLabelRowName = NAME_None;
+
+	// Whether to use unique instance IDs for labeling instead of category labels.
+	UPROPERTY(EditAnywhere, Config, Category="Labels")
+	bool bUseUniqueInstanceIds = false;
 };
