@@ -242,10 +242,47 @@ void UTempoActorLabeler::LabelComponent(UPrimitiveComponent* Component, int32 Ac
 		}
 	}
 
-	// No mesh label found. Label with its owning Actor's label.
-	Component->SetRenderCustomDepth(true);
-	Component->SetCustomDepthStencilValue(ActorLabelId);
-	LabeledComponents.Add(Component, ActorLabelId);
+	bool bUseUniqueInstanceIds = GetDefault<UTempoSensorsSettings>()->GetUseUniqueInstanceIds();
+	if (bUseUniqueInstanceIds && ActorLabelId > 0)
+	{
+		AActor* Parent = Component->GetOwner();
+		if (!IsValid(Parent))
+		{
+			UE_LOG(LogTempoLabels, Error, TEXT("Component %s has no valid owner, cannot assign unique instance ID"), *Component->GetName());
+			return;
+		}
+
+		uint8 instanceId;
+		{
+			FScopeLock Lock(&CriticalSection);
+			if (uint8* ExistingInstanceId = ParentActorInstanceIds.Find(Parent))
+			{
+				instanceId = *ExistingInstanceId;
+			}
+			else
+			{
+				if (nextUniqueInstanceId >= 255)
+				{
+					UE_LOG(LogTempoLabels, Error, TEXT("Too many unique instance IDs assigned, cannot assign more"));
+					return;
+				}
+				instanceId = nextUniqueInstanceId++;
+				ParentActorInstanceIds.Add(Parent, instanceId);
+				InstanceToLabel.Add(instanceId, ActorLabelId);
+			}
+		}
+
+		Component->SetRenderCustomDepth(true);
+		Component->SetCustomDepthStencilValue(instanceId);
+		LabeledComponents.Add(Component, instanceId);
+	}
+	else
+	{
+		// No mesh label found. Label with its owning Actor's label.
+		Component->SetRenderCustomDepth(true);
+		Component->SetCustomDepthStencilValue(ActorLabelId);
+		LabeledComponents.Add(Component, ActorLabelId);
+	}
 }
 
 FName UTempoActorLabeler::GetActorClassification(const AActor* Actor) const
