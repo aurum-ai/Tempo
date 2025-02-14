@@ -7,7 +7,6 @@
 #include "CoreMinimal.h"
 #include "Engine/DataTable.h"
 #include "Subsystems/WorldSubsystem.h"
-#include "HAL/CriticalSection.h"
 
 #include "TempoActorLabeler.generated.h"
 
