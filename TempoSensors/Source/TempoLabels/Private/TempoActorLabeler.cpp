@@ -269,6 +269,7 @@ void UTempoActorLabeler::LabelComponent(UPrimitiveComponent* Component, int32 Ac
 				instanceId = nextUniqueInstanceId++;
 				ParentActorInstanceIds.Add(Parent, instanceId);
 				InstanceToLabel.Add(instanceId, ActorLabelId);
+				LabeledActorClassNames.Add(Parent->GetClass()->GetFName());
 			}
 		}
 

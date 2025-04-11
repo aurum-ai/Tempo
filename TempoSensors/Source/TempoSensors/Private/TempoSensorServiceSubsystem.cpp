@@ -9,6 +9,7 @@
 #include "TempoCamera/Camera.pb.h"
 
 #include "TempoCoreSettings.h"
+#include "TempoSensorsSettings.h"
 #include "TempoActorLabeler.h"
 
 using SensorService = TempoSensors::SensorService;
@@ -18,6 +19,8 @@ using AvailableSensorsRequest = TempoSensors::AvailableSensorsRequest;
 using AvailableSensorsResponse = TempoSensors::AvailableSensorsResponse;
 using InstanceToLabelMappingRequest = TempoSensors::InstanceToLabelMappingRequest;
 using InstanceToLabelMappingResponse = TempoSensors::InstanceToLabelMappingResponse;
+using GetLabeledActorTypesRequest = TempoSensors::GetLabeledActorTypesRequest;
+using GetLabeledActorTypesResponse = TempoSensors::GetLabeledActorTypesResponse;
 
 using ColorImageRequest = TempoCamera::ColorImageRequest;
 using DepthImageRequest = TempoCamera::DepthImageRequest;
@@ -31,6 +34,7 @@ void UTempoSensorServiceSubsystem::RegisterScriptingServices(FTempoScriptingServ
 	ScriptingServer.RegisterService<SensorService>(
 		SimpleRequestHandler(&SensorAsyncService::RequestGetAvailableSensors, &UTempoSensorServiceSubsystem::GetAvailableSensors),
 		SimpleRequestHandler(&SensorAsyncService::RequestGetInstanceToLabelMapping, &UTempoSensorServiceSubsystem::GetInstanceToLabelMapping),
+		SimpleRequestHandler(&SensorAsyncService::RequestGetLabeledActorTypes, &UTempoSensorServiceSubsystem::HandleGetLabeledActorTypes),
 		StreamingRequestHandler(&SensorAsyncService::RequestStreamColorImages, &UTempoSensorServiceSubsystem::StreamColorImages),
 		StreamingRequestHandler(&SensorAsyncService::RequestStreamDepthImages, &UTempoSensorServiceSubsystem::StreamDepthImages),
 		StreamingRequestHandler(&SensorAsyncService::RequestStreamLabelImages, &UTempoSensorServiceSubsystem::StreamLabelImages)
@@ -194,6 +198,34 @@ void UTempoSensorServiceSubsystem::GetInstanceToLabelMapping(const TempoSensors:
 		auto* NewMapping = Response.add_instance_to_label();
 		NewMapping->set_instance(Mapping.Key);
 		NewMapping->set_label(Mapping.Value);
+	}
+
+	ResponseContinuation.ExecuteIfBound(Response, grpc::Status_OK);
+}
+
+void UTempoSensorServiceSubsystem::HandleGetLabeledActorTypes(const TempoSensors::GetLabeledActorTypesRequest& Request, const TResponseDelegate<TempoSensors::GetLabeledActorTypesResponse>& ResponseContinuation) const
+{
+	GetLabeledActorTypesResponse Response;
+
+	UTempoActorLabeler* Labeler = GetWorld()->GetSubsystem<UTempoActorLabeler>();
+	if (!Labeler)
+	{
+		ResponseContinuation.ExecuteIfBound(Response, grpc::Status(grpc::StatusCode::INTERNAL, "No labeler found"));
+		return;
+	}
+
+	// Check if instance ID mode is enabled. If not, this request is not applicable.
+	if (!GetDefault<UTempoSensorsSettings>()->GetUseUniqueInstanceIds()) // Use the correct settings class
+	{
+		ResponseContinuation.ExecuteIfBound(Response, grpc::Status(grpc::StatusCode::FAILED_PRECONDITION, "Instance ID mode is not enabled"));
+		return;
+	}
+
+	const TSet<FName>& LabeledClassNames = Labeler->GetLabeledActorClassNames();
+
+	for (const FName& ClassName : LabeledClassNames)
+	{
+		Response.add_actor_types(TCHAR_TO_UTF8(*ClassName.ToString()));
 	}
 
 	ResponseContinuation.ExecuteIfBound(Response, grpc::Status_OK);

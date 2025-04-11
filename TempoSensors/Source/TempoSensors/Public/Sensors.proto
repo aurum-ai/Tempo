@@ -38,8 +38,18 @@ message InstanceToLabelMappingResponse {
   repeated InstanceLabel instance_to_label = 1;
 }
 
+message GetLabeledActorTypesRequest {
+
+}
+
+message GetLabeledActorTypesResponse {
+  repeated string actor_types = 1; // List of actor class names with active instance IDs
+}
+
 service SensorService {
   rpc GetAvailableSensors(AvailableSensorsRequest) returns (AvailableSensorsResponse);
+
+  rpc GetLabeledActorTypes(GetLabeledActorTypesRequest) returns (GetLabeledActorTypesResponse);
 
   rpc GetInstanceToLabelMapping(InstanceToLabelMappingRequest) returns (InstanceToLabelMappingResponse);
 
