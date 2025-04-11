@@ -21,6 +21,8 @@ namespace TempoSensors
 	class AvailableSensorsResponse;
 	class InstanceToLabelMappingRequest;
 	class InstanceToLabelMappingResponse;
+	class GetLabeledActorTypesRequest;
+	class GetLabeledActorTypesResponse;
 }
 
 namespace TempoCamera
@@ -52,6 +54,8 @@ public:
 	void GetAvailableSensors(const TempoSensors::AvailableSensorsRequest& Request, const TResponseDelegate<TempoSensors::AvailableSensorsResponse>& ResponseContinuation) const;
 
 	void GetInstanceToLabelMapping(const TempoSensors::InstanceToLabelMappingRequest& Request, const TResponseDelegate<TempoSensors::InstanceToLabelMappingResponse>& ResponseContinuation) const;
+
+	void HandleGetLabeledActorTypes(const TempoSensors::GetLabeledActorTypesRequest& Request, const TResponseDelegate<TempoSensors::GetLabeledActorTypesResponse>& ResponseContinuation) const;
 
 	void StreamColorImages(const TempoCamera::ColorImageRequest& Request, const TResponseDelegate<TempoCamera::ColorImage>& ResponseContinuation) const;
 

@@ -26,6 +26,7 @@ public:
 	virtual FName GetActorClassification(const AActor* Actor) const override;
 
 	const TMap<uint8, int32>& GetInstanceToLabelMap() const { return InstanceToLabel; }
+	const TSet<FName>& GetLabeledActorClassNames() const { return LabeledActorClassNames; }
 
 protected:
 	void BuildLabelMaps();
@@ -73,6 +74,10 @@ protected:
 	// Maps parent actors to their assigned unique instance IDs
 	UPROPERTY()
 	TMap<const AActor*, uint8> ParentActorInstanceIds;
+
+	// Set of actor class names that have been assigned unique instance IDs
+	UPROPERTY()
+	TSet<FName> LabeledActorClassNames;
 
 	uint8 nextUniqueInstanceId = 1;
 
