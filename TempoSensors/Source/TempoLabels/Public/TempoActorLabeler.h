@@ -7,6 +7,8 @@
 #include "CoreMinimal.h"
 #include "Engine/DataTable.h"
 #include "Subsystems/WorldSubsystem.h"
+#include "HAL/CriticalSection.h"
+#include "TempoSensorsSettings.h"
 
 #include "TempoActorLabeler.generated.h"
 
@@ -19,6 +21,8 @@ class TEMPOLABELS_API UTempoActorLabeler : public UWorldSubsystem, public IActor
 	GENERATED_BODY()
 
 public:
+	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+
 	virtual void OnWorldBeginPlay(UWorld& InWorld) override;
 
 	virtual bool ShouldCreateSubsystem(UObject* Outer) const override;
@@ -83,4 +87,8 @@ protected:
 
 	// Critical section for thread-safe access to instance ID maps
 	FCriticalSection CriticalSection;
+
+private:
+	// Cached setting value for performance
+	bool bUseUniqueInstanceIdsCached = false;
 };

@@ -13,6 +13,13 @@
 
 #include "Engine.h"
 
+void UTempoActorLabeler::Initialize(FSubsystemCollectionBase& Collection)
+{
+	Super::Initialize(Collection);
+	// Cache the setting on initialization
+	bUseUniqueInstanceIdsCached = GetDefault<UTempoSensorsSettings>()->GetUseUniqueInstanceIds();
+}
+
 void UTempoActorLabeler::OnWorldBeginPlay(UWorld& InWorld)
 {
 	Super::OnWorldBeginPlay(InWorld);
@@ -242,8 +249,8 @@ void UTempoActorLabeler::LabelComponent(UPrimitiveComponent* Component, int32 Ac
 		}
 	}
 
-	bool bUseUniqueInstanceIds = GetDefault<UTempoSensorsSettings>()->GetUseUniqueInstanceIds();
-	if (bUseUniqueInstanceIds && ActorLabelId > 0)
+	// Use the cached setting value
+	if (bUseUniqueInstanceIdsCached && ActorLabelId > 0)
 	{
 		AActor* Parent = Component->GetOwner();
 		if (!IsValid(Parent))
