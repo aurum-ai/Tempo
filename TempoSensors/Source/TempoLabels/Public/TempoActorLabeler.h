@@ -50,8 +50,13 @@ namespace TempoScripting
 namespace TempoLabels
 {
 	class InstanceToSemanticIdMap;
+	class GetAllActorLabelsRequest;
+	class GetAllActorLabelsResponse;
 	class GetLabeledActorTypesRequest;
 	class GetLabeledActorTypesResponse;
+	class GetSemanticClassesRequest;
+	class GetSemanticClassesResponse;
+	class SetActorTypeSemanticIdRequest;
 }
 
 /**
@@ -75,7 +80,13 @@ public:
 
 	void GetInstanceToSemanticIdMap(const TempoScripting::Empty& Request, const TResponseDelegate<TempoLabels::InstanceToSemanticIdMap>& ResponseContinuation);
 
+	void HandleGetAllActorLabels(const TempoLabels::GetAllActorLabelsRequest& Request, const TResponseDelegate<TempoLabels::GetAllActorLabelsResponse>& ResponseContinuation);
+
 	void HandleGetLabeledActorTypes(const TempoLabels::GetLabeledActorTypesRequest& Request, const TResponseDelegate<TempoLabels::GetLabeledActorTypesResponse>& ResponseContinuation);
+
+	void HandleGetSemanticClasses(const TempoLabels::GetSemanticClassesRequest& Request, const TResponseDelegate<TempoLabels::GetSemanticClassesResponse>& ResponseContinuation);
+
+	void HandleSetActorTypeSemanticId(const TempoLabels::SetActorTypeSemanticIdRequest& Request, const TResponseDelegate<TempoScripting::Empty>& ResponseContinuation);
 
 	const TSet<FName>& GetLabeledActorClassNames() const { return LabeledActorClassNames; }
 
@@ -132,6 +143,11 @@ protected:
 	// Set of actor class names that have been assigned unique instance IDs
 	UPROPERTY()
 	TSet<FName> LabeledActorClassNames;
+
+	// Runtime overrides for actor types (class name -> semantic ID)
+	// Takes precedence over DataTable definitions
+	UPROPERTY()
+	TMap<FName, int32> ActorTypeSemanticIdOverrides;
 
 	FInstanceIdAllocator InstanceIdAllocator = FInstanceIdAllocator(1, 255);
 };
