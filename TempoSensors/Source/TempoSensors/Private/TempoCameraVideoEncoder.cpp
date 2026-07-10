@@ -2,6 +2,8 @@
 
 #include "TempoCameraVideoEncoder.h"
 
+#include "TempoH264SPS.h"
+
 #include "TempoSensors.h"
 
 #include "AVDevice.h"
@@ -332,6 +334,11 @@ void FTempoCameraVideoEncoder::EncodeRenderTarget_RenderThread(UTextureRenderTar
 
 	if (bGotAny)
 	{
+		// AVCodecs' low-latency setting configures the encoder backend, but some backends omit the
+		// H.264 VUI bitstream restriction. Hardware decoders may then rebuild a conservatively-sized
+		// decoded-picture buffer after every IDR, producing a visible pause. Advertise the actual
+		// zero-reorder, one-reference-frame stream semantics in-band for every joining client.
+		TempoH264::AddLowLatencyVUI(Aggregate.Data);
 		Aggregate.Width = Impl->AppliedConfig.Width;
 		Aggregate.Height = Impl->AppliedConfig.Height;
 		Aggregate.CaptureTime = CaptureTime;

@@ -65,6 +65,8 @@ Cameras expose a `Video` measurement alongside `ColorImage`. Subscribe via `Vide
 
 The encoder is created lazily on first request and reopens automatically when resolution or any per-request parameter changes. Multiple subscribers to the same camera share one encoder — every subscriber receives the same encoded bytes — so adding clients is cheap, but they all share the same bitrate / KFI / profile (last writer wins on reconfigure).
 
+Tempo requests Unreal's ultra-low-latency encoder mode and normalizes SPS NAL units that omit VUI bitstream restrictions. The added restriction declares zero frame reordering and bounds the decoded-picture buffer to the stream's reference-frame requirement, preventing hardware decoders from conservatively rebuffering after every IDR. SPS units that already contain VUI are preserved unchanged.
+
 Python clients use `tempo_sim.TempoImageUtils.stream_video_images(...)` (PyAV decoder); Rust clients see the wiring in `ExampleClients/Rust/SensorPlayground` (ffmpeg-next decoder, requires FFmpeg 8 dev headers locally for the `ffmpeg-next` build). C++ client decode is not yet provided.
 
 ### Configure a Lidar
