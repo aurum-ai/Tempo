@@ -10,6 +10,7 @@ PROJECT_NAME=$(find . -maxdepth 1 -name "*.uproject" -exec basename {} .uproject
 # Check for project packaging flags.
 LOW_MEMORY_MODE=false
 BUILD_CONFIGURATION=Development
+PACKAGE_VARIANT=Development
 for arg in "$@"; do
   case "$arg" in
     --low-memory)
@@ -17,9 +18,11 @@ for arg in "$@"; do
       ;;
     --release)
       BUILD_CONFIGURATION=Shipping
+      PACKAGE_VARIANT=Release
       ;;
   esac
 done
+PACKAGE_OUTPUT_DIR="$PROJECT_ROOT/Packaged/$PACKAGE_VARIANT"
 
 export UNREAL_ENGINE_PATH=$("$SCRIPT_DIR"/FindUnreal.sh)
 
@@ -91,15 +94,15 @@ cd "$UNREAL_ENGINE_PATH"
 # Build the base command with common arguments
 PACKAGE_COMMAND="Turnkey -command=VerifySdk -platform=$TARGET_PLATFORM -UpdateIfNeeded -project=\"$PROJECT_ROOT/$PROJECT_NAME.uproject\" BuildCookRun -nop4 -utf8output -nocompileeditor -skipbuildeditor -cook -target=\"$PROJECT_NAME\" -platform=$TARGET_PLATFORM -project=\"$PROJECT_ROOT/$PROJECT_NAME.uproject\" -installed -stage -package -pak -build -prereqs -clientconfig=$BUILD_CONFIGURATION"
 
-echo "Packaging $PROJECT_NAME in $BUILD_CONFIGURATION configuration -> $PROJECT_ROOT/Packaged"
+echo "Packaging $PROJECT_NAME in $BUILD_CONFIGURATION configuration -> $PACKAGE_OUTPUT_DIR"
 
 # Add platform-specific parts
 if [ "$HOST_PLATFORM" = "Win64" ]; then
-  PACKAGE_COMMAND="./Engine/Build/BatchFiles/RunUAT.bat $PACKAGE_COMMAND -unrealexe=\"UnrealEditor-Cmd.exe\" -stagingdirectory=\"$PROJECT_ROOT/Packaged\""
+  PACKAGE_COMMAND="./Engine/Build/BatchFiles/RunUAT.bat $PACKAGE_COMMAND -unrealexe=\"UnrealEditor-Cmd.exe\" -stagingdirectory=\"$PACKAGE_OUTPUT_DIR\""
 elif [ "$HOST_PLATFORM" = "Mac" ]; then
-  PACKAGE_COMMAND="./Engine/Build/BatchFiles/RunUAT.sh $PACKAGE_COMMAND -unrealexe=\"UnrealEditor-Cmd\" -archive -archivedirectory=\"$PROJECT_ROOT/Packaged\""
+  PACKAGE_COMMAND="./Engine/Build/BatchFiles/RunUAT.sh $PACKAGE_COMMAND -unrealexe=\"UnrealEditor-Cmd\" -archive -archivedirectory=\"$PACKAGE_OUTPUT_DIR\""
 elif [ "$HOST_PLATFORM" = "Linux" ]; then
-  PACKAGE_COMMAND="./Engine/Build/BatchFiles/RunUAT.sh $PACKAGE_COMMAND -unrealexe=\"UnrealEditor\" -stagingdirectory=\"$PROJECT_ROOT/Packaged\""
+  PACKAGE_COMMAND="./Engine/Build/BatchFiles/RunUAT.sh $PACKAGE_COMMAND -unrealexe=\"UnrealEditor\" -stagingdirectory=\"$PACKAGE_OUTPUT_DIR\""
 else
   echo "Unsupported platform"
   exit 1
@@ -137,15 +140,16 @@ done
 eval "$PACKAGE_COMMAND" "${PASSTHROUGH_ARGS[@]}"
 
 # Copy cook metadata (including chunk manifests) to the package directory
+mkdir -p "$PACKAGE_OUTPUT_DIR"
 if [[ "$TARGET_PLATFORM" = "Win64" ]]; then
-  cp -r "$PROJECT_ROOT/Saved/Cooked/Windows/$PROJECT_NAME/Metadata" "$PROJECT_ROOT/Packaged"
-  cp -r "$PROJECT_ROOT/Saved/Cooked/Windows/$PROJECT_NAME/AssetRegistry.bin" "$PROJECT_ROOT/Packaged"
+  cp -r "$PROJECT_ROOT/Saved/Cooked/Windows/$PROJECT_NAME/Metadata" "$PACKAGE_OUTPUT_DIR"
+  cp -r "$PROJECT_ROOT/Saved/Cooked/Windows/$PROJECT_NAME/AssetRegistry.bin" "$PACKAGE_OUTPUT_DIR"
 else
-  cp -r "$PROJECT_ROOT/Saved/Cooked/$TARGET_PLATFORM/$PROJECT_NAME/Metadata" "$PROJECT_ROOT/Packaged"
-  cp -r "$PROJECT_ROOT/Saved/Cooked/$TARGET_PLATFORM/$PROJECT_NAME/AssetRegistry.bin" "$PROJECT_ROOT/Packaged"
+  cp -r "$PROJECT_ROOT/Saved/Cooked/$TARGET_PLATFORM/$PROJECT_NAME/Metadata" "$PACKAGE_OUTPUT_DIR"
+  cp -r "$PROJECT_ROOT/Saved/Cooked/$TARGET_PLATFORM/$PROJECT_NAME/AssetRegistry.bin" "$PACKAGE_OUTPUT_DIR"
 fi
 
-# Copy generated Rust crate(s) to Packaged/API/Rust/ so downstream consumers can
+# Copy generated Rust crate(s) to the variant's API/Rust/ so downstream consumers can
 # build a Rust client against this packaged build. Only ships the files that
 # `cargo package` would include — same as the publish artifact, minus target/,
 # Cargo.lock, tempo_proto_includes/, etc. Source of truth is each crate's
@@ -160,7 +164,7 @@ PACKAGE_RUST_CRATE() {
   # POSIX [[:space:]] (not \s — BSD/macOS sed doesn't support \s and would leave the value as the
   # whole `name = "..."` line, creating a directory with spaces in its name).
   CRATE_NAME=$(grep -m1 '^name' "$CRATE_MANIFEST" | sed -E 's/^name[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/')
-  local DEST="$PROJECT_ROOT/Packaged/API/Rust/$CRATE_NAME"
+  local DEST="$PACKAGE_OUTPUT_DIR/API/Rust/$CRATE_NAME"
   echo "Packaging Rust crate $CRATE_NAME -> $DEST"
   # `--no-verify` skips the compile-the-extracted-crate step, so this works
   # even when a path dep (e.g. tempo-sim) isn't on crates.io yet. Capture the
@@ -197,7 +201,7 @@ if [[ -n "$TEMPO_GEN_RUST_API" && "$TEMPO_GEN_RUST_API" != "0" ]]; then
 fi
 
 # Build the generated Python package(s) (sdist + wheel) into
-# Packaged/API/Python/<dist-name>/ so downstream consumers can `pip install` a
+# the variant's API/Python/<dist-name>/ so downstream consumers can `pip install` a
 # Python client against this packaged build. Mirrors PACKAGE_RUST_CRATE.
 PYTHON_BIN=""
 # Prefer Tempo's managed venv (TempoEnv, created by the build's GenAPI step). It has the build
@@ -223,7 +227,7 @@ PACKAGE_PYTHON_PACKAGE() {
   # POSIX [[:space:]] (not \s — BSD/macOS sed doesn't support \s and would leave the value as the
   # whole `name = "..."` line, creating a directory with spaces in its name).
   DIST_NAME=$(grep -m1 '^name' "$PYPROJECT" | sed -E 's/^name[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/')
-  local DEST="$PROJECT_ROOT/Packaged/API/Python/$DIST_NAME"
+  local DEST="$PACKAGE_OUTPUT_DIR/API/Python/$DIST_NAME"
   echo "Packaging Python package $DIST_NAME -> $DEST"
   rm -rf "$DEST"
   mkdir -p "$DEST"
