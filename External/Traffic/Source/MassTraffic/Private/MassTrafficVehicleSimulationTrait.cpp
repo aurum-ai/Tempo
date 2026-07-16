@@ -100,7 +100,13 @@ void UMassTrafficVehicleSimulationMassControlTrait::BuildTemplate(FMassEntityTem
 	BuildContext.AddFragment<FMassZoneGraphLaneLocationFragment>();
 	
 	UMassTrafficSubsystem* MassTrafficSubsystem = UWorld::GetSubsystem<UMassTrafficSubsystem>(&World);
-	check(MassTrafficSubsystem);
+	if (!MassTrafficSubsystem)
+	{
+		// Editor-world template builds (MassGameplayEditor trait repository
+		// sweep during validation) have no game-world subsystems; skip
+		// instead of asserting the editor down.
+		return;
+	}
 
 	if (PhysicsParams.PhysicsVehicleTemplateActor)
 	{

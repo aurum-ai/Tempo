@@ -60,7 +60,11 @@ void UMassTrafficLightVisualizationTrait::BuildTemplate(FMassEntityTemplateBuild
 	{
 		UE_LOG(LogMassTraffic, Error, TEXT("UMassTrafficLightVisualizationTrait - Expecting a valid class for the representation subsystem"));
 		RepresentationSubsystem = UWorld::GetSubsystem<UMassRepresentationSubsystem>(&World);
-		check(RepresentationSubsystem);
+		if (!RepresentationSubsystem)
+		{
+			// Editor-world template builds have no game-world subsystems.
+			return;
+		}
 	}
 	
 	FMassEntityManager& EntityManager = UE::Mass::Utils::GetEntityManagerChecked(World);

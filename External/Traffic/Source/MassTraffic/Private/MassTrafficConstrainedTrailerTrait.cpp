@@ -14,7 +14,14 @@ void UMassTrafficConstrainedTrailerTrait::BuildTemplate(FMassEntityTemplateBuild
 	FMassEntityManager& EntityManager = UE::Mass::Utils::GetEntityManagerChecked(World);
 
 	UMassTrafficSubsystem* MassTrafficSubsystem = UWorld::GetSubsystem<UMassTrafficSubsystem>(&World);
-	check(MassTrafficSubsystem);
+	if (!MassTrafficSubsystem)
+	{
+		// Editor-world template builds (e.g. the MassGameplayEditor trait
+		// repository initializing during entity-config validation) have no
+		// MassTrafficSubsystem. Building an incomplete template here is
+		// harmless; asserting takes the whole editor down.
+		return;
+	}
 
 	// Add Params as shared fragment
 	const FConstSharedStruct ParamsSharedFragment = EntityManager.GetOrCreateConstSharedFragment(Params);

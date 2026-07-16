@@ -16,7 +16,13 @@ void UMassTrafficDriverVisualizationTrait::BuildTemplate(FMassEntityTemplateBuil
 	FMassEntityManager& EntityManager = UE::Mass::Utils::GetEntityManagerChecked(World);
 
 	UMassRepresentationSubsystem* RepresentationSubsystem = Cast<UMassRepresentationSubsystem>(World.GetSubsystemBase(RepresentationSubsystemClass));
-	check(RepresentationSubsystem);
+	if (!RepresentationSubsystem)
+	{
+		// Editor-world template builds (MassGameplayEditor trait repository
+		// sweep during validation) have no game-world subsystems; skip
+		// instead of asserting the editor down.
+		return;
+	}
 	
 	BuildContext.AddFragment<FMassTrafficDriverVisualizationFragment>();
 
