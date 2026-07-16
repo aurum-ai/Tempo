@@ -22,14 +22,19 @@ UMassTrafficVehicleSimulationLODProcessor::UMassTrafficVehicleSimulationLODProce
 	, EntityQueryVariableTick(*this)
 	, EntityQueryLODChange(*this)
 {
+	// AgenticSim patch: aerial (drone) camera keeps most of the 2x2 km map in
+	// view; the stock 500 m Off threshold put every vehicle at Off simulation
+	// LOD, where vehicle control ticks at 1 Hz while obstacle data updates per
+	// frame — queued vehicles visibly interpenetrated at stop lines. Keep
+	// vehicles at full-rate simulation LOD across the whole map.
 	BaseLODDistance[EMassLOD::High] = 0.0f;
-	BaseLODDistance[EMassLOD::Medium] = 20000.0f;
-	BaseLODDistance[EMassLOD::Low] = 20000.0f;
-	BaseLODDistance[EMassLOD::Off] = 50000.0f;
+	BaseLODDistance[EMassLOD::Medium] = 100000.0f;
+	BaseLODDistance[EMassLOD::Low] = 200000.0f;
+	BaseLODDistance[EMassLOD::Off] = 400000.0f;
 	VisibleLODDistance[EMassLOD::High] = 0.0f;
-	VisibleLODDistance[EMassLOD::Medium] = 20000.0f;
-	VisibleLODDistance[EMassLOD::Low] = 20000.0f;
-	VisibleLODDistance[EMassLOD::Off] = 100000.0f;
+	VisibleLODDistance[EMassLOD::Medium] = 150000.0f;
+	VisibleLODDistance[EMassLOD::Low] = 250000.0f;
+	VisibleLODDistance[EMassLOD::Off] = 450000.0f;
 	LODMaxCount[EMassLOD::High] = 150;
 	LODMaxCount[EMassLOD::Medium] = 0;
 	LODMaxCount[EMassLOD::Low] = TNumericLimits<int32>::Max();
