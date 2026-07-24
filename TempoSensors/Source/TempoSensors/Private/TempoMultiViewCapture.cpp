@@ -78,7 +78,8 @@ namespace
 		check(!ViewFamily.GetScreenPercentageInterface());
 		check(PrimaryComponent);
 
-		ViewFamily.FrameNumber = ViewFamily.Scene->GetFrameNumber();
+		// Tempo captures can render without a main viewport frame, so their persistent view state advances with the engine tick.
+		ViewFamily.FrameNumber = static_cast<uint32>(GFrameCounter);
 		ViewFamily.FrameCounter = GFrameCounter;
 
 		// Owner-level hide/show lists, computed once.
