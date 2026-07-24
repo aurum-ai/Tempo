@@ -9,6 +9,9 @@
 #include "TempoWorldUtils.h"
 
 #include "EngineUtils.h"
+#if WITH_DEV_AUTOMATION_TESTS
+#include "Misc/AutomationTest.h"
+#endif
 #if WITH_EDITOR
 #include "LevelEditor.h"
 #endif
@@ -692,17 +695,50 @@ grpc::Status GetObjectForRequest(const UWorld* World, const RequestType& Request
 	return grpc::Status_OK;
 }
 
+bool ShouldMarkRenderStateDirtyAfterPropertyWrite(const UObject* Object)
+{
+	return Object && Object->IsA<USceneComponent>();
+}
+
 void MarkRenderStateDirty(UObject* Object)
 {
-	if (AActor* Actor = Cast<AActor>(Object))
+	// A component owns its render proxy, so a reflected component-property write must refresh
+	// that proxy. An actor property has no generic mapping to component render state; actor code
+	// updates the specific components it controls. Invalidating every attached component here
+	// needlessly recreates unrelated capture and encoder state at control-loop rates.
+	if (ShouldMarkRenderStateDirtyAfterPropertyWrite(Object))
 	{
-		Actor->MarkComponentsRenderStateDirty();
-	}
-	else if (USceneComponent* SceneComponent = Cast<USceneComponent>(Object))
-	{
+		USceneComponent* SceneComponent = CastChecked<USceneComponent>(Object);
 		SceneComponent->MarkRenderStateDirty();
 	}
 }
+
+#if WITH_DEV_AUTOMATION_TESTS
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FPropertyWriteRenderInvalidationScopeTest,
+	"Tempo.World.PropertyWrites.RenderInvalidationScope",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FPropertyWriteRenderInvalidationScopeTest::RunTest(const FString& Parameters)
+{
+	const AActor* Actor = GetDefault<AActor>();
+	const USceneComponent* SceneComponent = GetDefault<USceneComponent>();
+	const UObject* PlainObject = GetDefault<UObject>();
+
+	TestFalse(
+		TEXT("An actor property does not imply that every attached component render proxy changed"),
+		ShouldMarkRenderStateDirtyAfterPropertyWrite(Actor));
+	TestTrue(
+		TEXT("A scene-component property write refreshes that component's render proxy"),
+		ShouldMarkRenderStateDirtyAfterPropertyWrite(SceneComponent));
+	TestFalse(
+		TEXT("Objects without render state are not invalidated"),
+		ShouldMarkRenderStateDirtyAfterPropertyWrite(PlainObject));
+	return true;
+}
+
+#endif
 
 void UTempoWorldControlServiceSubsystem::GetAllActors(const TempoCore::Empty& Request, const TResponseDelegate<GetAllActorsResponse>& ResponseContinuation) const
 {
